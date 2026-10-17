@@ -1,0 +1,18 @@
+{
+  "name": "EleoQuadrinho — Ambiente de Leitura",
+  "short_name": "EleoQuadrinho",
+  "description": "Ambiente de leitura interativo de HQs, Mangás, Lore de League of Legends, Marvel, DC e Mitologias em Português.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0c11",
+  "theme_color": "#f5b301",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

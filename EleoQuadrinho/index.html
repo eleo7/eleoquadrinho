@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EleoQuadrinho — Ambiente de Leitura</title>
+  <meta name="description" content="Ambiente de leitura interativo: HQs, lore de League of Legends e Runeterra, mitologias e heróis da Marvel e DC — tudo em português." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#f5b301" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topo">
+    <div class="marca" data-ir="inicio">
+      <span class="logo">EQ</span>
+      <span class="nome">Eleo<b>Quadrinho</b></span>
+    </div>
+    <div class="topo-busca">
+      <svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 105.3 14l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"/></svg>
+      <input id="buscaRapida" type="search" placeholder="Buscar campeões, heróis, deuses, HQs..." autocomplete="off" />
+    </div>
+    <button class="btn btn-pri" data-ir="biblioteca" style="padding:8px 14px;font-size:13px;white-space:nowrap" title="Importar HQ de outro site, Google Drive ou PC">➕ Adicionar HQ</button>
+    <button class="btn-icone" id="btnSorteio" title="Me surpreenda (leitura aleatória)">🎲</button>
+    <button class="btn-perfil-header" id="btnPerfilTopo" title="Meu Perfil e Contas">
+      <span class="avatar-header" id="headerAvatar">👤</span>
+      <span class="nome-header" id="headerNome">Entrar</span>
+    </button>
+  </header>
+
+  <main id="app">
+    <section class="aba ativa" id="aba-inicio"></section>
+    <section class="aba" id="aba-busca"></section>
+    <section class="aba" id="aba-historico"></section>
+    <section class="aba" id="aba-biblioteca"></section>
+    <section class="aba" id="aba-salvos"></section>
+    <section class="aba" id="aba-colecao"></section>
+    <section class="aba" id="aba-perfil"></section>
+  </main>
+
+  <nav class="nav-inferior">
+    <button data-ir="inicio" class="ativo"><svg viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z"/></svg><span>Início</span></button>
+    <button data-ir="busca"><svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 105.3 14l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"/></svg><span>Busca</span></button>
+    <button data-ir="historico"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 00-9 9H1l4 4 4-4H6a7 7 0 112 4.9l-1.4 1.4A9 9 0 1013 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></svg><span>Histórico</span></button>
+    <button data-ir="biblioteca"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zm7-3l6-6-1.4-1.4L13 13.2V3h-2v10.2L7.4 9.6 6 11z"/></svg><span>Biblioteca</span></button>
+    <button data-ir="salvos"><svg viewBox="0 0 24 24"><path d="M6 2h12a1 1 0 011 1v19l-7-4-7 4V3a1 1 0 011-1z"/></svg><span>Salvos</span></button>
+    <button data-ir="perfil"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Perfil</span></button>
+  </nav>
+
+  <!-- Modal de Login e Perfis -->
+  <div class="camada" id="modalAuth" aria-hidden="true">
+    <div class="detalhe-caixa auth-caixa">
+      <button class="fechar" data-fechar="modalAuth">✕</button>
+      <div id="authConteudo"></div>
+    </div>
+  </div>
+
+  <!-- Painel de detalhes -->
+  <div class="camada" id="detalhe" aria-hidden="true">
+    <div class="detalhe-caixa">
+      <button class="fechar" data-fechar="detalhe">✕</button>
+      <div id="detalheConteudo"></div>
+    </div>
+  </div>
+
+  <!-- Leitor de texto -->
+  <div class="leitor" id="leitorTexto" aria-hidden="true">
+    <div class="leitor-barra">
+      <button class="btn-icone" data-fechar-leitor>←</button>
+      <div class="leitor-titulo"><b id="ltTitulo"></b><small id="ltSub"></small></div>
+      <div class="leitor-acoes">
+        <button class="btn-icone" id="ltCapitulos" title="Capítulos">☰</button>
+        <button class="btn-icone" id="ltOuvir" title="Ouvir (narração)">🔊</button>
+        <button class="btn-icone" id="ltAjustes" title="Aparência">Aa</button>
+        <button class="btn-icone" id="ltTela" title="Tela cheia">⛶</button>
+      </div>
+    </div>
+    <div class="leitor-progresso"><i id="ltProgresso"></i></div>
+    <div class="leitor-ajustes" id="ltPainelAjustes">
+      <div><span>Tema</span>
+        <button data-tema="escuro">Escuro</button><button data-tema="sepia">Sépia</button><button data-tema="claro">Claro</button>
+      </div>
+      <div><span>Fonte</span>
+        <button data-fonte="serif">Serifada</button><button data-fonte="sans">Sem serifa</button>
+      </div>
+      <div><span>Tamanho</span>
+        <button data-tam="-1">A−</button><button data-tam="1">A+</button>
+      </div>
+      <div><span>Largura</span>
+        <button data-larg="-1">Estreita</button><button data-larg="1">Larga</button>
+      </div>
+      <div><span>Voz</span><select id="ltVoz"></select><input type="range" id="ltVelocidade" min="0.6" max="1.8" step="0.1" value="1" title="Velocidade" /></div>
+    </div>
+    <aside class="leitor-capitulos" id="ltPainelCapitulos"></aside>
+    <div class="leitor-corpo" id="ltCorpo"><article id="ltTexto"></article></div>
+  </div>
+
+  <!-- Leitor de HQ -->
+  <div class="leitor hq" id="leitorHQ" aria-hidden="true">
+    <div class="leitor-barra">
+      <button class="btn-icone" data-fechar-leitor title="Fechar leitor (Esc)">←</button>
+      <div class="leitor-titulo"><b id="hqTitulo"></b><small id="hqSub"></small></div>
+      <div class="leitor-acoes">
+        <div class="leitor-grupo" id="hqGrupoModo">
+          <select id="hqModo" title="Modo de leitura (Atalho: M)">
+            <option value="pagina">📄 Página única</option>
+            <option value="dupla">📖 Página dupla</option>
+            <option value="rolagem">📜 Rolagem vertical</option>
+          </select>
+        </div>
+        <span class="divisor-v"></span>
+        <div class="leitor-grupo">
+          <button class="btn-icone" id="hqSentido" title="Sentido de leitura: Ocidental / Mangá (Atalho: R)">📖</button>
+          <button class="btn-icone" id="hqSom" title="Som ao virar página (Atalho: S)">🔊</button>
+          <button class="btn-icone" id="hqCinema" title="Modo Cinema - Luz apagada (Atalho: C)">🎬</button>
+        </div>
+        <span class="divisor-v"></span>
+        <div class="leitor-grupo">
+          <button class="btn-icone" id="hqZoomMenos" title="Diminuir zoom (Atalho: −)">−</button>
+          <button class="btn-icone" id="hqZoomMais" title="Aumentar zoom (Atalho: +)">+</button>
+          <button class="btn-icone" id="hqTela" title="Tela cheia (Atalho: F)">⛶</button>
+          <button class="btn-icone" id="hqAjudaAtalhos" title="Atalhos do Teclado (Atalho: ?)">⌨️</button>
+        </div>
+      </div>
+    </div>
+    <div class="leitor-progresso"><i id="hqProgresso"></i></div>
+    <div class="hq-zoom-badge" id="hqZoomBadge" title="Clique para redefinir o zoom para 100%">🔍 100%</div>
+    <div class="hq-palco" id="hqPalco"></div>
+    <button class="hq-seta esq" id="hqAnt" title="Página anterior (←)">‹</button>
+    <button class="hq-seta dir" id="hqProx" title="Próxima página (→)">›</button>
+    <div class="hq-rodape">
+      <div class="hq-slider-preview" id="hqSliderPreview"><img id="hqPreviewImg" src="" alt=""><span id="hqPreviewNum">1</span></div>
+      <span id="hqContador">1 / 1</span>
+      <input type="range" id="hqSlider" min="1" max="1" value="1" />
+      <button class="btn-icone" id="hqMiniaturasBtn" title="Miniaturas">▦</button>
+    </div>
+    <div class="hq-miniaturas" id="hqMiniaturas"></div>
+  </div>
+
+  <!-- Visualizador externo (Drive / Internet Archive) -->
+  <div class="leitor" id="leitorFrame" aria-hidden="true">
+    <div class="leitor-barra">
+      <button class="btn-icone" data-fechar-leitor>←</button>
+      <div class="leitor-titulo"><b id="frTitulo"></b><small id="frSub"></small></div>
+      <div class="leitor-acoes"><a class="btn-icone" id="frExterno" target="_blank" rel="noopener" title="Abrir na fonte">↗</a></div>
+    </div>
+    <iframe id="frIframe" allowfullscreen></iframe>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/fontes.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
