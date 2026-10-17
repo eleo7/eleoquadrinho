@@ -189,6 +189,27 @@ with sync_playwright() as p:
         recipient.locator('#aba-biblioteca [data-ler="' + imported[0]['id'] + '"]').click()
         recipient.wait_for_function("document.querySelector('#ltTexto').textContent.includes('Leitura somente neste navegador.')")
     print('Portable HQ export -> fresh device import, identical bytes, no profile/history/catalog changes, duplicate protection: PASS')
+    # A persisted catalog rejected by the server must not block logout or be discarded.
+    pending_key = 'eq:pending:user-admin:catalog'
+    pending = {'data': catalog['data'], 'revision': catalog['revision']}
+    admin_page.evaluate('(args)=>localStorage.setItem(args.key,JSON.stringify(args.pending))', {'key': pending_key, 'pending': pending})
+    def reject_catalog_save(route):
+        if route.request.method == 'PUT':
+            route.fulfill(status=413, content_type='application/json', body=json.dumps({'error': 'Dados muito grandes. Limite de 2 MB por sincronização.'}))
+        else: route.fallback()
+    admin.route('**/api/account?action=catalog*', reject_catalog_save)
+    admin_page.reload(wait_until='domcontentloaded')
+    admin_page.wait_for_function("document.querySelector('#headerNome').textContent === 'Leitor Teste'")
+    admin_page.locator('nav [data-ir=perfil]').click()
+    admin_page.once('dialog', lambda dialog: dialog.accept())
+    admin_page.locator('#btnSairPerfil').click()
+    admin_page.wait_for_selector('#formConta')
+    assert admin_page.locator('#headerNome').inner_text() == 'Entrar'
+    assert admin_page.evaluate('(key)=>JSON.parse(localStorage.getItem(key))', pending_key) == pending
+    admin_page.reload(wait_until='domcontentloaded')
+    admin_page.wait_for_selector('#formConta')
+    assert admin_page.locator('#headerNome').inner_text() == 'Entrar'
+    print('Logout despite catalog 413, pending changes preserved and session stays closed after reload: PASS')
     # Do not use the backend-provisioned admin credential in tests.
     assert not errors, errors
     print('Browser smoke: signup, invalid password, login, reader permissions, favorites across devices, profile update, logout, admin controls: PASS')

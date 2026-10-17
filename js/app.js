@@ -101,13 +101,27 @@
       carregarArquivosLocais();
       if (!reader.dirty && !catalog.dirty) syncStatus('Conta conectada. Dados carregados da nuvem.');
     },
+    saindo: false,
+    sessaoEncerrada: false,
     async sair() {
+      if (this.saindo) return;
+      this.saindo = true;
+      const button = $('#btnSairPerfil');
+      if (button) { button.disabled = true; button.textContent = 'Saindo…'; }
       try {
-        await readerSync?.flush();
-        if (this.admin) await catalogSync?.flush();
+        // A failed save must not trap the user in their account. SyncDocument
+        // keeps pending changes under the original account's local storage key.
+        const documents = [readerSync, ...(this.admin ? [catalogSync] : [])].filter(Boolean);
+        await Promise.allSettled(documents.map(doc => doc.flush()));
+        documents.forEach(doc => { clearTimeout(doc.timer); if (doc.dirty) doc.persist(); });
         await EQAccount.api('logout', 'POST', {});
+        this.sessaoEncerrada = true;
         location.replace(location.pathname);
-      } catch (error) { syncStatus('Não foi possível sair: ' + error.message, true); }
+      } catch (error) {
+        this.saindo = false;
+        if (button) { button.disabled = false; button.textContent = '🚪 Sair'; }
+        syncStatus('Não foi possível encerrar a sessão. Verifique a conexão e tente novamente. ' + error.message, true);
+      }
     },
     carregarDadosPerfil() {
       const data = readerSync?.data || {};
@@ -5190,6 +5204,6 @@
   };
   window.addEventListener('online', () => $('#syncRetry').click());
   window.addEventListener('beforeunload', e => {
-    if (readerSync?.dirty || (Auth.admin && catalogSync?.dirty)) { e.preventDefault(); e.returnValue = ''; }
+    if (!Auth.sessaoEncerrada && (readerSync?.dirty || (Auth.admin && catalogSync?.dirty))) { e.preventDefault(); e.returnValue = ''; }
   });
 })();

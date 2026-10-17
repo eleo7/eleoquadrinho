@@ -203,3 +203,15 @@ test('malformed multipart manifests never reach storage', async () => {
   }
   assert.ok(requests.every(r => !r.path.includes('/storage/')));
 });
+test('logout clears browser credentials even when provider revocation is unavailable', async () => {
+  backend({ '/auth/v1/logout?scope=local': () => Response.json({}, { status: 503 }) });
+  const result = await call('logout', 'POST');
+  assert.equal(result.status, 200); assert.equal(result.body.revoked, false);
+  assert.ok(result.headers['Set-Cookie'].every(c => c.includes('Max-Age=0')));
+});
+test('logout clears credentials when user verification itself is unavailable', async () => {
+  backend({ '/auth/v1/user': () => Response.json({}, { status: 503 }) });
+  const result = await call('logout', 'POST');
+  assert.equal(result.status, 200);
+  assert.ok(result.headers['Set-Cookie'].every(c => c.includes('Max-Age=0')));
+});

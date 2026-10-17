@@ -48,7 +48,7 @@ try:
         page.evaluate('async()=>await navigator.serviceWorker.ready')
         legacy = False
         page.evaluate('async()=>await (await navigator.serviceWorker.getRegistration()).update()')
-        page.wait_for_function('async()=> (await caches.keys()).includes("eq-cache-v9-portable")')
+        page.wait_for_function('async()=> (await caches.keys()).includes("eq-cache-v10-logout")')
         page.wait_for_timeout(500)
         page.reload(wait_until='domcontentloaded')
         page.wait_for_selector('#formConta #authLoginInput')

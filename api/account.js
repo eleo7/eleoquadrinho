@@ -101,12 +101,14 @@ async function handler(req, res) {
       return res.status(200).json({ user });
     }
     if (req.method === 'POST' && action === 'logout') {
+      let revoked = false;
       try {
         await authenticate(req, res);
         await request('/auth/v1/logout?scope=local', { method: 'POST', token: req.authToken });
-      } catch (error) { if (![400, 401].includes(error.status)) throw error; }
-      setSession(res, null);
-      return res.status(200).json({ ok: true });
+        revoked = true;
+      } catch { /* Provider downtime must not prevent clearing this browser's credentials. */ }
+      finally { setSession(res, null); }
+      return res.status(200).json({ ok: true, revoked });
     }
     const identity = await authenticate(req, res);
     if (['state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
