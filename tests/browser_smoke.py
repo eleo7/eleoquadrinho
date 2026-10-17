@@ -39,10 +39,16 @@ def connect(context, role='reader'):
             else: result = doc
         elif action == 'file-upload':
             assert role == 'admin'
-            result = {'path': '00000000-0000-4000-8000-000000000001.txt', 'url': BASE + '/test-storage'}
+            count = 3
+            size = body['size']
+            step = (size + count - 1) // count
+            parts = [{'path': f'00000000-0000-4000-8000-{len(uploaded):09d}{i:03d}.txt', 'url': BASE + f'/test-storage/{len(uploaded)}-{i}', 'size': min(step, size - i * step)} for i in range(count)]
+            result = {**parts[0], 'parts': parts}
+            uploaded['manifest'] = parts
         elif action == 'file-read':
             assert any(item['id'] == body['id'] and item.get('storagePath') for item in catalog['data']['externas'])
-            result = {'url': BASE + '/test-storage'}
+            item = next(item for item in catalog['data']['externas'] if item['id'] == body['id'])
+            result = {'urls': [uploaded[path] for path in item['storageParts']], 'size': item['storageSize']}
         elif action == 'profile':
             user.update(body); result = {'user': user}
         else: raise AssertionError(action)
@@ -50,11 +56,14 @@ def connect(context, role='reader'):
     context.route('**/api/account?*', api)
     def storage(route):
         if route.request.method == 'PUT':
-            uploaded['bytes'] = route.request.post_data_buffer
+            uploaded[route.request.url] = route.request.post_data_buffer
+            part = next(p for p in uploaded['manifest'] if p['url'] == route.request.url)
+            uploaded[part['path']] = route.request.url
+            assert len(uploaded[route.request.url]) == part['size']
             route.fulfill(status=200, body='{}', content_type='application/json')
         else:
-            route.fulfill(status=200, body=uploaded['bytes'], content_type='text/plain')
-    context.route('**/test-storage', storage)
+            route.fulfill(status=200, body=uploaded[route.request.url], content_type='text/plain')
+    context.route('**/test-storage/*', storage)
     # Avoid optional catalogs/CDNs in this deterministic application-flow test.
     context.route('https://**/*', lambda route: route.abort())
     return session
@@ -128,7 +137,8 @@ with sync_playwright() as p:
     admin_page.locator('#extArquivoObraInput').set_input_files({'name': 'hq.txt', 'mimeType': 'text/plain', 'buffer': b'Conteudo compartilhado com o leitor.'})
     admin_page.locator('#extSalvarBtn').click()
     admin_page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('HQ publicada:')")
-    shared = next(item for item in catalog['data']['externas'] if item.get('storagePath'))
+    admin_page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('HQ publicada: \"HQ compartilhada\"')")
+    shared = next(item for item in catalog['data']['externas'] if item.get('titulo') == 'HQ compartilhada')
     fresh = browser.new_context(service_workers='block'); connect(fresh)
     reader = fresh.new_page(); reader.on('pageerror', lambda error: errors.append(str(error))); login(reader)
     reader.locator('nav [data-ir=biblioteca]').click()

@@ -34,7 +34,7 @@ Para publicar este projeto na Vercel:
 
 ## Contas, administrador e sincronização
 
-O login agora depende de Supabase Auth e da API da Vercel. Cadastros são leitores; o administrador `Eleo7` é provisionado por um script seguro. Histórico, favoritos e preferências ficam associados à conta. PDFs, CBZs, EPUBs e textos publicados pelo administrador ficam em armazenamento privado compartilhado com os leitores (até 50 MB por arquivo).
+O login agora depende de Supabase Auth e da API da Vercel. Cadastros são leitores; o administrador `Eleo7` é provisionado por um script seguro. Histórico, favoritos e preferências ficam associados à conta. PDFs, CBZs, EPUBs e textos publicados pelo administrador ficam em armazenamento privado compartilhado com os leitores (até 500 MB por HQ).
 
 Siga [a configuração de contas na Vercel](docs/CONTAS-VERCEL.md) para criar o banco, configurar as variáveis, provisionar o administrador e validar o deployment. Não inclua senhas ou chaves no código.
 

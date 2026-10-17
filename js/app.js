@@ -2732,12 +2732,20 @@
           }
           if (!file) throw new Error('Arquivo não encontrado neste navegador. Anexe-o novamente.');
           const format = o.formato === 'imagens' ? 'cbz' : o.formato;
-          if (file.size > 50 * 1024 * 1024) throw new Error('O arquivo excede o limite de 50 MB por HQ.');
+          if (file.size > 500 * 1024 * 1024) throw new Error('O arquivo excede o limite de 500 MB por HQ.');
           syncStatus('Enviando "' + o.nome + '" para os leitores…');
           const upload = await EQAccount.api('file-upload', 'POST', { format, size: file.size }, Auth.usuario.id);
-          const response = await fetch(upload.url, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
-          if (!response.ok) throw new Error('O envio do arquivo falhou. Sua cópia local foi preservada. Tente publicar novamente.');
-          o.storagePath = upload.path;
+          const parts = upload.parts || [{ path: upload.path, url: upload.url, size: file.size }];
+          let offset = 0;
+          for (const [index, part] of parts.entries()) {
+            syncStatus('Enviando "' + o.nome + '”: parte ' + (index + 1) + ' de ' + parts.length + '…');
+            const response = await fetch(part.url, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file.slice(offset, offset + part.size) });
+            if (!response.ok) throw new Error('O envio falhou (HTTP ' + response.status + '). Sua cópia local foi preservada. Confira o espaço disponível no Supabase e tente novamente.');
+            offset += part.size;
+          }
+          o.storagePath = parts[0].path;
+          o.storageParts = parts.map(part => part.path);
+          o.storageSize = file.size;
           if (o.formato === 'imagens') { o.formato = 'cbz'; o.blob = file; delete o.blobs; }
           await BD.salvar(o);
         }
@@ -2900,6 +2908,7 @@
         banner: o.capa,
         formato: o.formato,
         storagePath: o.storagePath || '',
+        ...(o.storageParts ? { storageParts: o.storageParts, storageSize: o.storageSize } : {}),
         paginasCount: o.paginas || 0
       });
     },
@@ -2909,9 +2918,15 @@
         try {
           toast('Carregando o arquivo compartilhado…');
           const signed = await EQAccount.api('file-read', 'POST', { id: it.id }, Auth.usuario.id);
-          const response = await fetch(signed.url);
-          if (!response.ok) throw new Error('Não foi possível baixar a HQ. Tente novamente.');
-          o = { ...it, nome: it.titulo, paginas: it.paginasCount, blob: await response.blob() };
+          const blobs = [];
+          for (const url of (signed.urls || [signed.url])) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Não foi possível baixar a HQ completa. Tente novamente.');
+            blobs.push(await response.blob());
+          }
+          const blob = new Blob(blobs, { type: blobs[0]?.type });
+          if (signed.size && blob.size !== signed.size) throw new Error('O arquivo recebido está incompleto. Tente novamente.');
+          o = { ...it, nome: it.titulo, paginas: it.paginasCount, blob };
         } catch (error) { return toast(error.message); }
       } else {
         o = await BD.pegar(it.id);
@@ -3259,7 +3274,7 @@
       <option value="originais">Independentes / Outros</option>`;
 
     el.innerHTML = `
-      <div class="secao-cab"><div><p>Arquivos enviados aqui ficam disponíveis a todos os leitores após a publicação (até 50 MB por arquivo).</p>
+      <div class="secao-cab"><div><p>Arquivos enviados aqui ficam disponíveis a todos os leitores após a publicação (até 500 MB por HQ).</p>
         <button class="btn btn-pri" id="btnPublicarLocais">Publicar HQs já salvas neste navegador</button>
       </div></div>
       <div class="secao-cab">

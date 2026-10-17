@@ -142,7 +142,7 @@ test('readers cannot request an upload URL', async () => {
 test('upload rejects unsupported formats and oversize files before reaching storage', async () => {
   backend({ '/rest/v1/profiles?id=eq.reader-id&select=*': () => Response.json([{ id: 'reader-id', role: 'admin' }]) });
   assert.equal((await call('file-upload', 'POST', { format: 'html', size: 100 })).status, 400);
-  assert.equal((await call('file-upload', 'POST', { format: 'pdf', size: 51 * 1024 * 1024 })).status, 400);
+  assert.equal((await call('file-upload', 'POST', { format: 'pdf', size: 501 * 1024 * 1024 })).status, 400);
   assert.ok(requests.every(r => !r.path.includes('/storage/')));
 });
 test('file reading requires a published catalog entry, not a client supplied storage path', async () => {
@@ -167,4 +167,37 @@ test('signed reading works for a published file without requiring a local browse
 test('unpublished or malformed paths cannot escape the comics bucket', async () => {
   backend({ '/rest/v1/catalog?id=eq.1&select=data': () => Response.json([{ data: { externas: [{ id: 'local:book', storagePath: '../other/secret.pdf' }] } }]) });
   assert.equal((await call('file-read', 'POST', { id: 'local:book' })).status, 404);
+});
+test('large HQ upload is split into bounded objects without losing bytes', async () => {
+  backend({ '/rest/v1/profiles?id=eq.reader-id&select=*': () => Response.json([{ id: 'reader-id', role: 'admin' }]) });
+  const upstream = global.fetch;
+  global.fetch = async (url, options) => new URL(url).pathname.startsWith('/storage/v1/object/upload/sign/comics/')
+    ? Response.json({ url: new URL(url).pathname.replace('/storage/v1', '') + '?token=test' }) : upstream(url, options);
+  for (const mb of [50, 51, 500]) {
+    const result = await call('file-upload', 'POST', { format: 'pdf', size: mb * 1024 * 1024 });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.parts.length, Math.ceil(mb / 4));
+    assert.equal(result.body.parts.reduce((n, p) => n + p.size, 0), mb * 1024 * 1024);
+    assert.ok(result.body.parts.every(p => p.size <= 4 * 1024 * 1024));
+    assert.equal(new Set(result.body.parts.map(p => p.path)).size, result.body.parts.length);
+  }
+});
+test('multipart reading preserves catalog order and ignores client supplied paths', async () => {
+  const paths = [1, 2, 3].map(n => `00000000-0000-4000-8000-00000000000${n}.pdf`);
+  backend({
+    '/rest/v1/catalog?id=eq.1&select=data': () => Response.json([{ data: { externas: [{ id: 'book', storagePath: paths[0], storageParts: paths, storageSize: 123 }] } }]),
+    ...Object.fromEntries(paths.map(path => ['/storage/v1/object/sign/comics/' + path, () => Response.json({ signedURL: '/object/sign/comics/' + path })]))
+  });
+  const result = await call('file-read', 'POST', { id: 'book', storageParts: ['secret'] });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.urls, paths.map(p => 'https://example.supabase.co/storage/v1/object/sign/comics/' + p));
+  assert.equal(result.body.size, 123);
+});
+test('malformed multipart manifests never reach storage', async () => {
+  const path = '00000000-0000-4000-8000-000000000001.pdf';
+  for (const parts of [[], [path, '../secret'], [path, path], Array(126).fill(path), 'not-an-array']) {
+    backend({ '/rest/v1/catalog?id=eq.1&select=data': () => Response.json([{ data: { externas: [{ id: 'book', storagePath: path, storageParts: parts }] } }]) });
+    assert.equal((await call('file-read', 'POST', { id: 'book' })).status, 404);
+  }
+  assert.ok(requests.every(r => !r.path.includes('/storage/')));
 });
