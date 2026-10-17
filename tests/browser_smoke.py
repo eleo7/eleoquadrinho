@@ -164,6 +164,31 @@ with sync_playwright() as p:
     assert admin_page.locator('#aba-biblioteca [data-ler="' + local_id + '"]').count() == 0
     admin_page.wait_for_function("document.querySelector('#cloudSpace').textContent.includes('espaço acabando')")
     print('Reader local import, reading, persistence, account isolation and cloud warning: PASS')
+    import tempfile
+    reader.locator('#hqPackageSelection').select_option(local_id)
+    with reader.expect_download() as download_info:
+        reader.locator('#exportHQPackage').click()
+    with tempfile.TemporaryDirectory() as directory:
+        package_path = directory + '/shared.eleohq'
+        download_info.value.save_as(package_path)
+        recipient_context = browser.new_context(service_workers='block'); connect(recipient_context)
+        recipient = recipient_context.new_page(); login(recipient)
+        recipient.locator('nav [data-ir=biblioteca]').click()
+        state_before = json.dumps(cloud); catalog_before = json.dumps(catalog)
+        recipient.locator('#importHQPackage').set_input_files(package_path)
+        recipient.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('1 HQ(s) importadas')")
+        assert json.dumps(cloud) == state_before
+        assert json.dumps(catalog) == catalog_before
+        assert recipient.locator('#headerNome').inner_text() == 'Leitor Teste'
+        imported = recipient.evaluate("""()=>new Promise(resolve=>{const r=indexedDB.open('eleoquadrinho:user-reader');r.onsuccess=()=>{const q=r.result.transaction('arquivos').objectStore('arquivos').getAll();q.onsuccess=async()=>resolve(await Promise.all(q.result.map(async x=>({id:x.id,text:await x.blob.text(),localOnly:x.localOnly}))))}})""")
+        assert len(imported) == 1 and imported[0]['id'] != local_id
+        assert imported[0]['text'] == 'Leitura somente neste navegador.' and imported[0]['localOnly']
+        recipient.locator('#importHQPackage').set_input_files(package_path)
+        recipient.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('0 HQ(s) importadas')")
+        assert json.dumps(cloud) == state_before and json.dumps(catalog) == catalog_before
+        recipient.locator('#aba-biblioteca [data-ler="' + imported[0]['id'] + '"]').click()
+        recipient.wait_for_function("document.querySelector('#ltTexto').textContent.includes('Leitura somente neste navegador.')")
+    print('Portable HQ export -> fresh device import, identical bytes, no profile/history/catalog changes, duplicate protection: PASS')
     # Do not use the backend-provisioned admin credential in tests.
     assert not errors, errors
     print('Browser smoke: signup, invalid password, login, reader permissions, favorites across devices, profile update, logout, admin controls: PASS')

@@ -2670,7 +2670,28 @@
     todos() { return this.op('readonly', s => s.getAll()); },
     pegar(id) { return this.op('readonly', s => s.get(id)); },
     salvar(o) { return this.op('readwrite', s => s.put(o)); },
-    apagar(id) { return this.op('readwrite', s => s.delete(id)); }
+    apagar(id) { return this.op('readwrite', s => s.delete(id)); },
+    async importarPacote(books, account) {
+      const db = await this.abrir();
+      if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Importe novamente na conta desejada.');
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('arquivos', 'readwrite');
+        const store = tx.objectStore('arquivos'); let added = 0;
+        const existing = store.getAll();
+        existing.onsuccess = () => {
+          if (Auth.usuario?.id !== account) { tx.abort(); return; }
+          const hashes = new Set(existing.result.filter(o => o.packageHash).map(o => o.formato + ':' + o.packageHash));
+          for (const book of books) {
+            const key = book.formato + ':' + book.packageHash;
+            if (hashes.has(key)) continue;
+            hashes.add(key);
+            store.add({ ...book, id: 'local:' + crypto.randomUUID(), adicionado: Date.now() }); added++;
+          }
+        };
+        tx.oncomplete = () => resolve(added);
+        tx.onabort = tx.onerror = () => reject(new Error('Não foi possível importar. Nenhuma HQ foi adicionada; confira o espaço livre e a conta aberta.'));
+      });
+    }
   };
   const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp)$/i;
   const ordenarNat = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
@@ -3271,11 +3292,18 @@
     return `<div class="painel" style="margin-bottom:20px;padding:16px"><h3>Minha biblioteca neste navegador</h3>
       <p>Arquivos pessoais, disponíveis somente nesta conta e neste navegador. Não são enviados à nuvem nem compartilhados. O espaço depende do dispositivo; limpar os dados do navegador pode apagar as HQs. Mantenha os arquivos originais como backup.</p>
       <label class="btn btn-sec">Guardar HQs apenas neste navegador<input id="localHQInput" type="file" accept=".pdf,.cbz,.zip,.epub,.txt,.md,image/*" multiple hidden></label>
-      <p id="localSpace" role="status"></p></div>`;
+      <p id="localSpace" role="status"></p>
+      <h4>Transferir HQs para outro dispositivo</h4>
+      <p>Selecione arquivos salvos neste navegador. O pacote inclui HQs, capas e informações, sem perfil, histórico ou favoritos. Até 500 MB por pacote; prefira lotes pequenos no celular.</p>
+      <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
+      <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
+      <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" accept=".eleohq,.zip" hidden></label>
+      <p id="hqPackageStatus" role="status"></p></div>`;
   }
   function configurarLocal() {
     const input = $('#localHQInput');
     if (!input) return;
+    configurarPacotes();
     input.onchange = async () => {
       input.disabled = true;
       try {
@@ -3288,6 +3316,49 @@
       if (el) el.textContent = `Uso aproximado deste site no navegador: ${Math.ceil((usage || 0) / 1048576)} MB de ${Math.floor((quota || 0) / 1048576)} MB disponíveis para o site.`;
     }).catch(() => {});
   }
+  function configurarPacotes() {
+    const selection = $('#hqPackageSelection'), status = $('#hqPackageStatus');
+    const exportButton = $('#exportHQPackage'), importInput = $('#importHQPackage');
+    const account = Auth.usuario.id;
+    BD.todos().then(items => {
+      if (Auth.usuario?.id !== account || !selection.isConnected) return;
+      selection.innerHTML = items.filter(o => o.blob || o.blobs?.length).map(o => `<option value="${esc(o.id)}">${esc(o.nome)} (${esc(o.formato)})</option>`).join('');
+      if (!selection.options.length) status.textContent = 'Nenhum arquivo local disponível para exportar.';
+    }).catch(() => { status.textContent = 'Não foi possível carregar os arquivos locais.'; });
+    exportButton.onclick = async () => {
+      exportButton.disabled = true;
+      try {
+        const ids = new Set([...selection.selectedOptions].map(o => o.value));
+        if (!ids.size) throw new Error('Selecione pelo menos uma HQ na lista.');
+        const items = (await BD.todos()).filter(o => ids.has(o.id));
+        if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Reabra a biblioteca.');
+        status.textContent = 'Preparando pacote com os arquivos completos…';
+        const bytes = await EQHQPackage.pack(items, JSZip);
+        if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Reabra a biblioteca.');
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+        const link = document.createElement('a'); link.href = url; link.download = 'hqs-' + new Date().toISOString().slice(0, 10) + '.eleohq'; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        status.textContent = 'Pacote pronto. Envie o arquivo .eleohq e importe-o na biblioteca do outro dispositivo.';
+      } catch (error) { status.textContent = error.message; }
+      finally { exportButton.disabled = false; }
+    };
+    importInput.onchange = async () => {
+      importInput.disabled = true;
+      try {
+        const file = importInput.files[0]; if (!file) return;
+        if (file.size > EQHQPackage.LIMIT + 12 * 1024 * 1024) throw new Error('Pacote acima do limite de 500 MB de HQs. Divida a exportação em lotes menores.');
+        status.textContent = 'Conferindo os arquivos do pacote…';
+        const books = await EQHQPackage.unpack(await file.arrayBuffer(), JSZip);
+        const added = await BD.importarPacote(books, account);
+        if (Auth.usuario?.id !== account) return;
+        await renderMinhasHQs();
+        await renderBiblioteca();
+        $('#hqPackageStatus').textContent = `${added} HQ(s) importadas somente neste navegador; ${books.length - added} já importadas foram ignoradas. Perfil, histórico e favoritos preservados.`;
+      } catch (error) { status.textContent = 'Importação cancelada: ' + error.message; }
+      finally { importInput.disabled = false; importInput.value = ''; }
+    };
+  }
+
   async function atualizarEspacoNuvem() {
     const el = $('#cloudSpace');
     if (!el || !Auth.admin) return;
@@ -4523,7 +4594,7 @@
       a.href = URL.createObjectURL(blob);
       a.download = 'backup-minhas-hqs-eleoquadrinho.eleo';
       a.click();
-      toast('💾 Backup completo (.eleo) exportado com sucesso!');
+      toast('💾 Catálogo exportado. Para incluir arquivos, use o pacote de HQs.');
     };
     $('#inpImportarJSON').onchange = async (e) => {
       const f = e.target.files?.[0]; if (!f) return;
