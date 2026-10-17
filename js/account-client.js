@@ -15,6 +15,33 @@
     if (!response.ok) { const error = new Error(data.error || 'Não foi possível acessar sua conta.'); error.status = response.status; throw error; }
     return data;
   }
+  const coverCache = new Map();
+  function hasInlineImages(value) {
+    if (typeof value === 'string') return value.startsWith('data:image/');
+    return !!value && typeof value === 'object' && Object.values(value).some(hasInlineImages);
+  }
+  async function prepareCatalog(data, account, transport = api, upload = fetch) {
+    if (!hasInlineImages(data)) return data;
+    async function replace(value) {
+      if (typeof value === 'string' && value.startsWith('data:image/')) {
+        const match = /^data:(image\/(?:jpeg|png|webp|gif|avif));base64,([a-z0-9+/=\s]+)$/i.exec(value);
+        if (!match) throw new Error('Uma capa tem formato inválido. Use JPEG, PNG, WebP, GIF ou AVIF.');
+        const key = account + ':' + value;
+        if (coverCache.has(key)) return coverCache.get(key);
+        const bytes = Uint8Array.from(atob(match[2]), ch => ch.charCodeAt(0));
+        const signed = await transport('cover-upload', 'POST', { type: match[1].toLowerCase(), size: bytes.length }, account);
+        const response = await upload(signed.uploadURL, { method: 'PUT', headers: { 'Content-Type': match[1].toLowerCase() }, body: bytes, signal: AbortSignal.timeout(60000) });
+        if (!response.ok) throw new Error('Não foi possível enviar uma capa. As alterações continuam pendentes.');
+        if (typeof signed.reference !== 'string' || !signed.reference.startsWith('/api/account?action=cover-read&path=')) throw new Error('Referência de capa inválida.');
+        coverCache.set(key, signed.reference);
+        return signed.reference;
+      }
+      if (Array.isArray(value)) { const result = []; for (const item of value) result.push(await replace(item)); return result; }
+      if (value && typeof value === 'object') { const result = {}; for (const [key, item] of Object.entries(value)) result[key] = await replace(item); return result; }
+      return value;
+    }
+    return replace(data);
+  }
   class SyncDocument {
     constructor(kind, account, notify, transport = api, storage = localStorage) {
       this.kind = kind; this.account = account; this.notify = notify; this.transport = transport; this.storage = storage;
@@ -32,6 +59,7 @@
         if (this.conflict) this.notify('Há alterações pendentes e uma versão mais recente na nuvem. Baixe o backup antes de recarregar.', true);
         else this.schedule();
       }
+      if (this.kind === 'catalog' && !this.dirty && hasInlineImages(this.data)) { this.dirty = true; this.persist(); this.schedule(); }
       return this.data;
     }
     update(patch) {
@@ -56,8 +84,14 @@
       if (this.conflict) throw new Error('Resolva o conflito de sincronização antes de continuar.');
       this.running = (async () => {
         while (this.dirty) {
-          const snapshot = this.data;
+          let snapshot = this.data;
           try {
+            if (this.kind === 'catalog') {
+              const prepared = await prepareCatalog(snapshot, this.account, this.transport);
+              if (this.data === snapshot) this.data = prepared;
+              snapshot = prepared;
+              this.persist();
+            }
             const result = await this.transport(this.kind, 'PUT', { data: snapshot, revision: this.revision }, this.account);
             this.revision = result.revision;
             this.dirty = snapshot !== this.data;
@@ -73,7 +107,7 @@
       try { return await this.running; } finally { this.running = null; }
     }
   }
-  const exported = { api, SyncDocument };
+  const exported = { api, SyncDocument, prepareCatalog };
   if (typeof module !== 'undefined') module.exports = exported;
   else root.EQAccount = exported;
 })(typeof window !== 'undefined' ? window : globalThis);

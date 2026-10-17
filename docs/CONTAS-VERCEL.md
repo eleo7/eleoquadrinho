@@ -113,3 +113,11 @@ Limite: 200 HQs e 500 MB de arquivos por pacote, além do manifesto. A geração
 ### Saída da conta com alterações pendentes
 
 Sair tenta salvar os documentos, mas erros de tamanho, conflito ou sincronização não impedem o encerramento da sessão. As alterações pendentes permanecem sob a chave local da conta original para recuperação no próximo acesso. A saída confirmada não dispara o aviso de navegação com alterações pendentes. Se o Supabase estiver indisponível, a API ainda remove os cookies deste navegador; a revogação no provedor é tentada separadamente. Sem conexão com a API do site, a tela informa a falha e permite tentar novamente, sem afirmar que a sessão foi encerrada.
+
+### Catálogo e capas sem imagens embutidas
+
+Antes de sincronizar o catálogo, o cliente extrai imagens `data:image` e envia cada capa diretamente ao bucket privado `comics` usando URLs temporárias autorizadas para o administrador. Capa e banner idênticos reutilizam o envio na sessão. O catálogo passa a guardar referências pequenas em vez de Base64. O limite de segurança de 2 MB do corpo da API permanece; os binários não transitam no JSON de sincronização. As capas entram no cálculo de cota do Storage.
+
+Catálogos antigos e alterações locais pendentes são convertidos no próximo acesso do administrador ou em **Tentar sincronizar**, respeitando a revisão existente. A atualização só é confirmada depois de todas as capas serem enviadas e o banco aceitar a revisão. Não descarte o backup/pendências para migrar. Se houver conflito entre dispositivos, o fluxo de conflito existente continua protegendo as alterações.
+
+A leitura das capas exige sessão válida e uma referência publicada no catálogo; o endpoint redireciona para um endereço assinado de uma hora. Os arquivos continuam privados. O backend não aceita caminhos arbitrários para leitura. A saída da conta continua independente de falhas de sincronização.

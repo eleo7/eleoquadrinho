@@ -1,4 +1,5 @@
 'use strict';
+const { uploadCover, readCover } = require('../server/covers');
 const { comicsAction } = require('../server/comics');
 const { HttpError, configuration, request, loginName, password, publicProfile } = require('../server/backend');
 
@@ -111,8 +112,13 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, revoked });
     }
     const identity = await authenticate(req, res);
-    if (['state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
+    if (['state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
     const row = await profile(identity.id);
+    if (action === 'cover-upload' && req.method === 'POST') return res.status(200).json(await uploadCover(body, row));
+    if (action === 'cover-read' && req.method === 'GET') {
+      res.setHeader('Location', await readCover(req.query.path));
+      res.status(307); return res.end();
+    }
     if (['file-upload', 'file-read', 'storage-status'].includes(action) && req.method === 'POST') return res.status(200).json(await comicsAction(action, body, row));
     if (action === 'session' && req.method === 'GET') return res.status(200).json({ user: publicProfile(row) });
     if (action === 'profile' && req.method === 'PATCH') {
