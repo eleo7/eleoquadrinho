@@ -8,7 +8,8 @@
     "deploy": "npx vercel --prod",
     "dev": "npm run build && node --env-file-if-exists=.env.local scripts/dev.js",
     "test": "node --test tests/*.test.js",
-    "create-admin": "node --env-file-if-exists=.env.local scripts/create-admin.js"
+    "create-admin": "node --env-file-if-exists=.env.local scripts/create-admin.js",
+    "setup-storage": "node --env-file-if-exists=.env.local scripts/setup-storage.js"
   },
   "keywords": [
     "quadrinhos",

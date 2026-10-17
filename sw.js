@@ -1,15 +1,15 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v5-accounts';
+const CACHE_NAME = 'eq-cache-v6-comics';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
-  './css/style.css?v=accounts-20261017-2',
-  './js/data.js?v=accounts-20261017-2',
-  './js/fontes.js?v=accounts-20261017-2',
-  './js/app.js?v=accounts-20261017-2',
-  './js/account-client.js?v=accounts-20261017-2',
+  './css/style.css?v=comics-20261017-3',
+  './js/data.js?v=comics-20261017-3',
+  './js/fontes.js?v=comics-20261017-3',
+  './js/app.js?v=comics-20261017-3',
+  './js/account-client.js?v=comics-20261017-3',
   './manifest.json',
   './assets/icon.svg',
   './assets/capas/guardia.jpg',

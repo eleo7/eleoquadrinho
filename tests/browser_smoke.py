@@ -4,6 +4,7 @@ from playwright.sync_api import sync_playwright
 
 BASE = 'http://127.0.0.1:8001'
 cloud = {'data': {}, 'revision': 0}
+uploaded = {}
 catalog = {'data': {'externas': [{'id': 'ext:test', 'tipo': 'ext-hq', 'titulo': 'Obra de teste', 'colecao': 'originais', 'sub': 'Teste'}]}, 'revision': 0}
 
 def connect(context, role='reader'):
@@ -36,11 +37,24 @@ def connect(context, role='reader'):
                     doc.update(data=body['data'], revision=doc['revision'] + 1)
                     result = {'revision': doc['revision']}
             else: result = doc
+        elif action == 'file-upload':
+            assert role == 'admin'
+            result = {'path': '00000000-0000-4000-8000-000000000001.txt', 'url': BASE + '/test-storage'}
+        elif action == 'file-read':
+            assert any(item['id'] == body['id'] and item.get('storagePath') for item in catalog['data']['externas'])
+            result = {'url': BASE + '/test-storage'}
         elif action == 'profile':
             user.update(body); result = {'user': user}
         else: raise AssertionError(action)
         route.fulfill(status=status, content_type='application/json', body=json.dumps(result))
     context.route('**/api/account?*', api)
+    def storage(route):
+        if route.request.method == 'PUT':
+            uploaded['bytes'] = route.request.post_data_buffer
+            route.fulfill(status=200, body='{}', content_type='application/json')
+        else:
+            route.fulfill(status=200, body=uploaded['bytes'], content_type='text/plain')
+    context.route('**/test-storage', storage)
     # Avoid optional catalogs/CDNs in this deterministic application-flow test.
     context.route('https://**/*', lambda route: route.abort())
     return session
@@ -99,6 +113,28 @@ with sync_playwright() as p:
     admin_page.locator('nav [data-ir=biblioteca]').click()
     admin_page.wait_for_selector('#painelFormObra')
     assert admin_page.locator('[data-editar="ext:test"]:visible').count() > 0
+    admin_page.evaluate("""async()=>await new Promise((resolve,reject)=>{
+      const open=indexedDB.open('eleoquadrinho:user-admin',1);
+      open.onsuccess=()=>{const db=open.result;const tx=db.transaction('arquivos','readwrite');
+        tx.objectStore('arquivos').put({id:'local:legacy',nome:'HQ antiga',formato:'txt',blob:new Blob(['Conteudo antigo.'],{type:'text/plain'})});
+        tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>reject(tx.error);
+      };open.onerror=()=>reject(open.error);
+    })""")
+    admin_page.locator('#btnPublicarLocais').click()
+    admin_page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('HQ publicada:')")
+    assert any(item['id'] == 'local:legacy' and item.get('storagePath') for item in catalog['data']['externas'])
+    print('Migration of a previously local HQ to shared catalog: PASS')
+    admin_page.locator('#extTitulo').fill('HQ compartilhada')
+    admin_page.locator('#extArquivoObraInput').set_input_files({'name': 'hq.txt', 'mimeType': 'text/plain', 'buffer': b'Conteudo compartilhado com o leitor.'})
+    admin_page.locator('#extSalvarBtn').click()
+    admin_page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('HQ publicada:')")
+    shared = next(item for item in catalog['data']['externas'] if item.get('storagePath'))
+    fresh = browser.new_context(service_workers='block'); connect(fresh)
+    reader = fresh.new_page(); reader.on('pageerror', lambda error: errors.append(str(error))); login(reader)
+    reader.locator('nav [data-ir=biblioteca]').click()
+    reader.locator('#aba-biblioteca [data-ler="' + shared['id'] + '"]').click()
+    reader.wait_for_function("document.querySelector('#ltTexto').textContent.includes('Conteudo compartilhado com o leitor.')")
+    print('Cloud file: admin upload -> fresh reader with no IndexedDB copy: PASS')
     # Do not use the backend-provisioned admin credential in tests.
     assert not errors, errors
     print('Browser smoke: signup, invalid password, login, reader permissions, favorites across devices, profile update, logout, admin controls: PASS')

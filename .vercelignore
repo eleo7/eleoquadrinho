@@ -8,3 +8,4 @@ tests/
 docs/
 supabase/
 scripts/create-admin.js
+scripts/setup-storage.js

@@ -233,7 +233,7 @@
     const doUsuario = [
       ...externas.map(x => REG.get(x.id) || reg(x)),
       ...drive.map(d => REG.get(d.id) || reg(d)),
-      ...[...REG.values()].filter(i => i.tipo === 'local')
+      ...[...REG.values()].filter(i => i.tipo === 'local' && !externas.some(x => x.id === i.id))
     ];
     const eds = doUsuario.filter(it => it.serieId === sId || (it.serieNome && norm(it.serieNome) === sNome));
     return eds.sort((a, b) => {
@@ -273,7 +273,7 @@
     const doUsuario = [
       ...externas.map(x => REG.get(x.id) || reg(x)),
       ...drive.map(d => REG.get(d.id) || reg(d)),
-      ...[...REG.values()].filter(i => i.tipo === 'local')
+      ...[...REG.values()].filter(i => i.tipo === 'local' && !externas.some(x => x.id === i.id))
     ];
     doUsuario.forEach(it => {
       if (it.heroiId === hId || (it.heroiNome && norm(it.heroiNome) === hNome) || (it.serieId && idsSeriesHeroi.has(it.serieId)) || (hNome.length >= 3 && norm(`${it.titulo} ${it.resumo || ''}`).includes(hNome))) {
@@ -619,7 +619,7 @@
 
   function renderMinhasHQs() {
     const el = $('#secMinhasHQs'); if (!el) return;
-    const locais = [...REG.values()].filter(i => i.tipo === 'local');
+    const locais = [...REG.values()].filter(i => i.tipo === 'local' && !externas.some(x => x.id === i.id));
     const itens = [
       ...series.map(s => REG.get(s.id) || reg(s)),
       ...externas.map(x => REG.get(x.id) || reg(x)),
@@ -666,7 +666,7 @@
     return [
       ...externas.map(x => REG.get(x.id) || reg(x)),
       ...drive.map(d => REG.get(d.id) || reg(d)),
-      ...[...REG.values()].filter(i => i.tipo === 'local')
+      ...[...REG.values()].filter(i => i.tipo === 'local' && !externas.some(x => x.id === i.id))
     ];
   }
   function universoDoItem(it) {
@@ -1097,6 +1097,8 @@
       ed.edicaoNum = k + 1;
       reg(ed);
       if (ed.id.startsWith('local:')) {
+        const shared = externas.find(x => x.id === ed.id);
+        if (shared) shared.edicaoNum = k + 1;
         const itemBD = await BD.pegar(ed.id);
         if (itemBD) { itemBD.edicaoNum = k + 1; await BD.salvar(itemBD); }
       } else if (ed.id.startsWith('ext:')) {
@@ -2714,6 +2716,58 @@
   }
 
   const Biblioteca = {
+    async publicar(o) {
+      if (!Auth.admin) return false;
+      const saveButton = $('#extSalvarBtn');
+      if (saveButton) saveButton.disabled = true;
+      try {
+        await BD.salvar(o);
+        if (!o.storagePath) {
+          let file = o.blob;
+          if (o.formato === 'imagens') {
+            if (!window.JSZip) throw new Error('A biblioteca ZIP não carregou. Tente novamente.');
+            const zip = new JSZip();
+            o.blobs.forEach((blob, i) => zip.file(String(i + 1).padStart(5, '0') + '.' + (blob.name?.split('.').pop() || 'jpg'), blob));
+            file = await zip.generateAsync({ type: 'blob' });
+          }
+          if (!file) throw new Error('Arquivo não encontrado neste navegador. Anexe-o novamente.');
+          const format = o.formato === 'imagens' ? 'cbz' : o.formato;
+          if (file.size > 50 * 1024 * 1024) throw new Error('O arquivo excede o limite de 50 MB por HQ.');
+          syncStatus('Enviando "' + o.nome + '" para os leitores…');
+          const upload = await EQAccount.api('file-upload', 'POST', { format, size: file.size }, Auth.usuario.id);
+          const response = await fetch(upload.url, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+          if (!response.ok) throw new Error('O envio do arquivo falhou. Sua cópia local foi preservada. Tente publicar novamente.');
+          o.storagePath = upload.path;
+          if (o.formato === 'imagens') { o.formato = 'cbz'; o.blob = file; delete o.blobs; }
+          await BD.salvar(o);
+        }
+        const item = Biblioteca.item(o);
+        externas = [snap(item), ...externas.filter(x => x.id !== item.id)];
+        Store.set('externas', externas);
+        await catalogSync.flush();
+        syncStatus('HQ publicada: "' + o.nome + '" está disponível aos leitores.');
+        return true;
+      } catch (error) {
+        Biblioteca.item(o);
+        syncStatus('HQ ainda não publicada: ' + error.message, true);
+        toast(error.message);
+        return false;
+      } finally { if (saveButton) saveButton.disabled = false; }
+    },
+    async publicarPendentes(button) {
+      if (!Auth.admin) return;
+      if (button) button.disabled = true;
+      try {
+        const files = await BD.todos();
+        const pending = files.filter(o => !externas.some(it => it.id === o.id && it.storagePath));
+        if (!pending.length) return toast('Não há arquivos locais pendentes neste navegador.');
+        let count = 0;
+        for (const o of pending) { if (await Biblioteca.publicar(o)) count++; else break; }
+        toast(`${count} de ${pending.length} HQ(s) publicadas para os leitores.`);
+        renderBiblioteca();
+      } catch (error) { syncStatus(error.message, true); }
+      finally { if (button) button.disabled = false; }
+    },
     async importar(arquivos, opcoes = {}) {
       if (!Auth.admin) return toast('Somente o administrador pode importar conteúdo.');
       arquivos = [...arquivos]; if (!arquivos.length) return;
@@ -2756,8 +2810,7 @@
           capa: capaImg,
           adicionado: Date.now()
         };
-        await BD.salvar(obj);
-        Biblioteca.item(obj);
+        if (!await Biblioteca.publicar(obj)) return;
         n++;
         if (proxEdNum != null) proxEdNum++;
       }
@@ -2790,8 +2843,7 @@
             if (!pgs.length) { toast(`${f.name}: nenhuma imagem encontrada`); continue; }
             const capaCbz = opcoes.capa || await miniatura(await pgs[0].async('blob'));
             const obj = { ...base, formato: 'cbz', paginas: pgs.length, capa: capaCbz };
-            await BD.salvar(obj);
-            Biblioteca.item(obj);
+            if (!await Biblioteca.publicar(obj)) continue;
             if (serieObj && !serieObj.capa && capaCbz) {
               serieObj.capa = capaCbz; serieObj.banner = capaCbz; reg(serieObj);
               series = [snap(serieObj), ...series.filter(s => s.id !== serieObj.id)]; Store.set('series', series);
@@ -2802,8 +2854,7 @@
             // Usa a capa enviada pelo usuário se houver; caso contrário, usa automaticamente a 1ª página do PDF!
             const capaPdf = opcoes.capa || metaPdf.capa || serieObj?.capa || hItem?.capa || '';
             const obj = { ...base, formato: 'pdf', paginas: metaPdf.paginas || 0, capa: capaPdf };
-            await BD.salvar(obj);
-            Biblioteca.item(obj);
+            if (!await Biblioteca.publicar(obj)) continue;
             if (serieObj && !serieObj.capa && capaPdf) {
               serieObj.capa = capaPdf; serieObj.banner = capaPdf; reg(serieObj);
               series = [snap(serieObj), ...series.filter(s => s.id !== serieObj.id)]; Store.set('series', series);
@@ -2811,12 +2862,10 @@
           } else if (ext === 'epub') {
             const e = await lerEPUB(f);
             const obj = { ...base, nome: opcoes.nome || e.titulo || base.nome, autor: e.autor, formato: 'epub', paginas: e.secoes.length, capa: opcoes.capa || '' };
-            await BD.salvar(obj);
-            Biblioteca.item(obj);
+            if (!await Biblioteca.publicar(obj)) continue;
           } else if (['txt', 'md'].includes(ext)) {
             const obj = { ...base, formato: 'txt', capa: opcoes.capa || '' };
-            await BD.salvar(obj);
-            Biblioteca.item(obj);
+            if (!await Biblioteca.publicar(obj)) continue;
           } else if (ext === 'cbr' || ext === 'rar') {
             toast('Arquivos CBR/RAR não são suportados no navegador — converta para CBZ ou PDF.'); continue;
           } else {
@@ -2850,11 +2899,24 @@
         capa: o.capa,
         banner: o.capa,
         formato: o.formato,
+        storagePath: o.storagePath || '',
         paginasCount: o.paginas || 0
       });
     },
     async abrir(it, cap) {
-      const o = await BD.pegar(it.id); if (!o) return toast('Arquivo não encontrado na biblioteca.');
+      let o;
+      if (it.storagePath) {
+        try {
+          toast('Carregando o arquivo compartilhado…');
+          const signed = await EQAccount.api('file-read', 'POST', { id: it.id }, Auth.usuario.id);
+          const response = await fetch(signed.url);
+          if (!response.ok) throw new Error('Não foi possível baixar a HQ. Tente novamente.');
+          o = { ...it, nome: it.titulo, paginas: it.paginasCount, blob: await response.blob() };
+        } catch (error) { return toast(error.message); }
+      } else {
+        o = await BD.pegar(it.id);
+        if (!o) return toast('O administrador ainda precisa publicar o arquivo desta HQ.');
+      }
       toast('Abrindo ' + o.nome + '...');
       const edsSerie = it.serieId ? edicoesDaSerie(it.serieId) : [];
       const idxSerie = edsSerie.findIndex(e => e.id === it.id);
@@ -2888,7 +2950,7 @@
   };
   function carregarArquivosLocais() {
     return BD.todos().then(async (l) => {
-    l.forEach(o => Biblioteca.item(o));
+    l.forEach(o => { if (!externas.some(it => it.id === o.id && it.storagePath)) Biblioteca.item(o); });
     renderMinhasHQs();
     // Para qualquer PDF já salvo anteriormente sem capa, extrai automaticamente a 1ª página como capa!
     for (const o of l) {
@@ -3197,6 +3259,9 @@
       <option value="originais">Independentes / Outros</option>`;
 
     el.innerHTML = `
+      <div class="secao-cab"><div><p>Arquivos enviados aqui ficam disponíveis a todos os leitores após a publicação (até 50 MB por arquivo).</p>
+        <button class="btn btn-pri" id="btnPublicarLocais">Publicar HQs já salvas neste navegador</button>
+      </div></div>
       <div class="secao-cab">
         <div><small>Cadastre ou edite HQs, Mangás, Lores, crie Subpastas de Coleções/Séries (ex.: Ultimate Wolverine #1 a #16) e vincule a um Herói</small><h3 style="font-size:28px">Central de Importação, Coleções/Séries, Heróis & Biblioteca</h3></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -4210,6 +4275,7 @@
         const nArq = arquivoObraSelecionado.name.toLowerCase();
         const formatoArq = (nArq.endsWith('.cbz') || nArq.endsWith('.zip')) ? 'cbz'
           : (nArq.endsWith('.pdf') || arquivoObraSelecionado.type === 'application/pdf') ? 'pdf'
+          : nArq.endsWith('.epub') ? 'epub'
           : (nArq.endsWith('.txt') || nArq.endsWith('.md')) ? 'txt' : 'img';
         let textoArq = '';
         if (formatoArq === 'txt') {
@@ -4237,8 +4303,7 @@
           blob: arquivoObraSelecionado,
           criado: Date.now()
         };
-        await BD.salvar(objLocal);
-        Biblioteca.item(objLocal);
+        if (!await Biblioteca.publicar(objLocal)) return;
         if (serieObj && !serieObj.capa && capa) {
           serieObj.capa = capa;
           serieObj.banner = capa;
@@ -4255,7 +4320,8 @@
 
       // Caso 1: Editando um arquivo local do IndexedDB (local:)
       if (editandoObraId && editandoObraId.startsWith('local:')) {
-        const o = await BD.pegar(editandoObraId);
+        const known = REG.get(editandoObraId);
+        const o = await BD.pegar(editandoObraId) || (known?.storagePath ? { ...known, nome: known.titulo, paginas: known.paginasCount } : null);
         if (!o) return toast('Arquivo local não encontrado.');
         o.nome = titulo;
         o.sub = $('#extSub').value.trim();
@@ -4268,8 +4334,7 @@
         o.serieNome = serieNome;
         o.edicaoNum = edicaoNum;
         if (capa) o.capa = capa;
-        await BD.salvar(o);
-        Biblioteca.item(o);
+        if (!await Biblioteca.publicar(o)) return;
         if (heroiId) preHeroiSelecionado = heroiId;
         if (serieId) preSerieSelecionada = serieId;
         renderMinhasHQs();
@@ -4516,12 +4581,13 @@
     function renderListaBiblioteca() {
       const extIts = externas.map(x => REG.get(x.id) || reg(x));
       const driveIts = drive.map(d => REG.get(d.id) || reg(d));
-      const todos = [...extIts, ...locais, ...driveIts];
+      const todos = [...new Map([...locais, ...extIts, ...driveIts].map(it => [it.id, it])).values()];
       $('#bibLista').innerHTML = secao('Minhas HQs, Edições, Mangás, Lores, Arquivos & Google Drive', `${todos.length} item(ns) · Use ✏️ Editar ou 🗑 Remover em qualquer cartão`, todos.length
         ? `<div class="grade">${todos.map(i => cartao(i)).join('')}</div>`
         : '<div class="vazio"><div class="em">📂</div>Sua biblioteca pessoal está vazia. Adicione uma Coleção/Série, HQ, Mangá ou Lore acima, vincule a um Herói ou envie arquivos CBZ/PDF.</div>');
     }
 
+    $('#btnPublicarLocais').onclick = e => Biblioteca.publicarPendentes(e.currentTarget);
     renderSeriesBiblioteca();
     renderHeroisBiblioteca();
     renderListaBiblioteca();
@@ -4613,7 +4679,10 @@
       } else if (id.startsWith('drive:')) { drive = drive.filter(d => d.id !== id); Store.set('drive', drive); }
       else if (id.startsWith('ext:')) { externas = externas.filter(x => x.id !== id); Store.set('externas', externas); }
       else if (id.startsWith('heroi:')) { herois = herois.filter(h => h.id !== id); Store.set('herois', herois); }
-      else await BD.apagar(id);
+      else {
+        externas = externas.filter(x => x.id !== id); Store.set('externas', externas);
+        await BD.apagar(id);
+      }
       REG.delete(id);
       if ($('#detalhe').classList.contains('aberta')) fecharCamada();
       renderMinhasHQs();

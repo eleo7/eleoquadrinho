@@ -133,3 +133,38 @@ test('logout refreshes an expired session, revokes it and clears both cookies', 
   const result = await call('logout', 'POST', {}, { cookie: 'eq_access=expired; eq_refresh=old' });
   assert.equal(result.status, 200); assert.ok(result.headers['Set-Cookie'].every(c => c.includes('Max-Age=0')));
 });
+test('readers cannot request an upload URL', async () => {
+  backend();
+  const result = await call('file-upload', 'POST', { format: 'pdf', size: 100, role: 'admin' });
+  assert.equal(result.status, 403);
+  assert.ok(requests.every(r => !r.path.includes('/storage/')));
+});
+test('upload rejects unsupported formats and oversize files before reaching storage', async () => {
+  backend({ '/rest/v1/profiles?id=eq.reader-id&select=*': () => Response.json([{ id: 'reader-id', role: 'admin' }]) });
+  assert.equal((await call('file-upload', 'POST', { format: 'html', size: 100 })).status, 400);
+  assert.equal((await call('file-upload', 'POST', { format: 'pdf', size: 51 * 1024 * 1024 })).status, 400);
+  assert.ok(requests.every(r => !r.path.includes('/storage/')));
+});
+test('file reading requires a published catalog entry, not a client supplied storage path', async () => {
+  backend({ '/rest/v1/catalog?id=eq.1&select=data': () => Response.json([{ data: { externas: [] } }]) });
+  const result = await call('file-read', 'POST', { id: 'missing', storagePath: 'private.pdf' });
+  assert.equal(result.status, 404);
+  assert.ok(requests.every(r => !r.path.includes('/storage/')));
+});
+test('signed reading works for a published file without requiring a local browser copy', async () => {
+  const path = '00000000-0000-4000-8000-000000000001.pdf';
+  backend({
+    '/rest/v1/catalog?id=eq.1&select=data': () => Response.json([{ data: { externas: [{ id: 'local:book', storagePath: path }] } }]),
+    ['/storage/v1/object/sign/comics/' + path]: options => {
+      assert.equal(JSON.parse(options.body).expiresIn, 3600);
+      return Response.json({ signedURL: '/object/sign/comics/' + path + '?token=test-signed' });
+    }
+  });
+  const result = await call('file-read', 'POST', { id: 'local:book' });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.url, 'https://example.supabase.co/storage/v1/object/sign/comics/' + path + '?token=test-signed');
+});
+test('unpublished or malformed paths cannot escape the comics bucket', async () => {
+  backend({ '/rest/v1/catalog?id=eq.1&select=data': () => Response.json([{ data: { externas: [{ id: 'local:book', storagePath: '../other/secret.pdf' }] } }]) });
+  assert.equal((await call('file-read', 'POST', { id: 'local:book' })).status, 404);
+});
