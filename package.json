@@ -1,0 +1,21 @@
+{
+  "name": "eleoquadrinho",
+  "version": "2.0.0",
+  "description": "Ambiente de Leitura Interativo de Quadrinhos, Mangás e Lore em Português",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Static build ready'",
+    "deploy": "npx vercel --prod"
+  },
+  "keywords": [
+    "quadrinhos",
+    "hqs",
+    "mangas",
+    "leitor",
+    "lore",
+    "pwa",
+    "eleoquadrinho"
+  ],
+  "author": "Leo Souza",
+  "license": "MIT"
+}
