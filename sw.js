@@ -1,17 +1,17 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v11-covers';
+const CACHE_NAME = 'eq-cache-v12-quiet';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
-  './css/style.css?v=covers-20261017-8',
-  './js/data.js?v=covers-20261017-8',
-  './js/fontes.js?v=covers-20261017-8',
-  './js/app.js?v=covers-20261017-8',
-  './js/account-client.js?v=covers-20261017-8',
-  './js/jszip.min.js?v=covers-20261017-8',
-  './js/hq-package.js?v=covers-20261017-8',
+  './css/style.css?v=quiet-20261017-9',
+  './js/data.js?v=quiet-20261017-9',
+  './js/fontes.js?v=quiet-20261017-9',
+  './js/app.js?v=quiet-20261017-9',
+  './js/account-client.js?v=quiet-20261017-9',
+  './js/jszip.min.js?v=quiet-20261017-9',
+  './js/hq-package.js?v=quiet-20261017-9',
   './manifest.json',
   './assets/icon.svg',
   './assets/capas/guardia.jpg',

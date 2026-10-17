@@ -56,9 +56,11 @@
   function syncStatus(message, error = false) {
     const el = $('#syncStatus');
     if (!el) return;
-    el.hidden = false;
+    const uploading = message.startsWith('Enviando ');
+    el.hidden = !error && !uploading;
     $('#syncMessage').textContent = message;
     el.classList.toggle('sync-error', error);
+    if (!error && message.startsWith('HQ publicada:')) toast(message);
   }
   const Auth = {
     get usuario() { return accountUser; },
