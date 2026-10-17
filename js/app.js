@@ -17,9 +17,22 @@
   const tirarTags = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/\{\{.*?\}\}/g, '…');
 
   /* ---------------- Armazenamento & Autenticação ---------------- */
+  let accountUser = null;
+  let readerSync = null;
+  let catalogSync = null;
+  const catalogKeys = ['drive', 'externas', 'herois', 'series'];
   const Store = {
-    get(k, d) { try { const v = JSON.parse(localStorage.getItem('eq:' + k)); return v ?? d; } catch { return d; } },
-    set(k, v) { try { localStorage.setItem('eq:' + k, JSON.stringify(v)); } catch (e) { console.warn(e); } }
+    get(k, d) {
+      const source = catalogKeys.includes(k) ? catalogSync?.data : readerSync?.data;
+      return source?.[k] ?? d;
+    },
+    set(k, v) {
+      if (!accountUser) return;
+      if (catalogKeys.includes(k)) {
+        if (accountUser.role !== 'admin') throw new Error('Somente o administrador pode alterar o catálogo.');
+        catalogSync.update({ [k]: v });
+      } else if (k === 'prefs') readerSync.update({ prefs: v });
+    }
   };
 
   const AVATARES_PADRAO = [
@@ -35,200 +48,76 @@
     { id: 'ekko', nome: 'Ekko', url: 'https://ddragon.leagueoflegends.com/cdn/14.20.1/img/champion/Ekko.png' }
   ];
 
-  let usuarios = Store.get('usuarios', []);
-  if (!Array.isArray(usuarios)) usuarios = [];
-  usuarios = usuarios.filter(u => u && typeof u === 'object' && u.id && (u.nome || u.login));
-  let usuarioAtivoId = Store.get('usuarioAtivoId', null);
-  if (usuarioAtivoId && !usuarios.some(u => u.id === usuarioAtivoId)) {
-    usuarioAtivoId = null;
-    Store.set('usuarioAtivoId', null);
-  }
-
   let historico = [];
   let salvos = {};
   let avaliacoes = {};
   let finais = {};
 
+  function syncStatus(message, error = false) {
+    const el = $('#syncStatus');
+    if (!el) return;
+    el.hidden = false;
+    $('#syncMessage').textContent = message;
+    el.classList.toggle('sync-error', error);
+  }
   const Auth = {
-    get usuario() {
-      if (!usuarioAtivoId) return null;
-      return usuarios.find(u => u.id === usuarioAtivoId) || null;
-    },
-    salvarUsuarios() {
-      Store.set('usuarios', usuarios);
-    },
+    get usuario() { return accountUser; },
+    get admin() { return accountUser?.role === 'admin'; },
     atualizarHeader() {
       const u = this.usuario;
-      const av = $('#headerAvatar');
-      const nm = $('#headerNome');
-      const btn = $('#btnPerfilTopo');
-      if (!av || !nm) return;
-      if (u) {
-        av.innerHTML = u.avatar ? `<img src="${esc(u.avatar)}" alt="${esc(u.nome)}" onerror="this.parentElement.textContent='👤'">` : esc(u.nome.charAt(0).toUpperCase());
-        nm.textContent = u.nome;
-        if (btn) btn.title = `Perfil de ${u.nome} (@${u.login})`;
-      } else {
-        av.innerHTML = '👤';
-        nm.textContent = 'Entrar';
-        if (btn) btn.title = 'Entrar ou Criar Perfil de Leitor';
-      }
+      $('#headerAvatar').textContent = u ? u.nome.charAt(0).toUpperCase() : '👤';
+      $('#headerNome').textContent = u ? u.nome : 'Entrar';
+      $('#btnPerfilTopo').title = u ? `Perfil de ${u.nome} (@${u.login})` : 'Entrar ou criar conta';
+      document.body.classList.toggle('conta-admin', this.admin);
     },
-    cadastrar({ nome, login, senha, avatar, bio }) {
-      nome = (nome || '').trim();
-      if (!nome) throw new Error('Por favor, informe seu nome ou apelido.');
-
-      let loginFinal = norm(login || nome).replace(/[^a-z0-9_-]/g, '');
-      if (!loginFinal || loginFinal.length < 2) {
-        loginFinal = 'leitor_' + Math.floor(1000 + Math.random() * 9000);
-      }
-
-      // Se já existe um usuário com este login ou nome:
-      const existente = usuarios.find(u => u.login === loginFinal || norm(u.nome) === norm(nome));
-      if (existente) {
-        const senhaInformada = senha ? senha.trim() : '';
-        if (!existente.senha || (senhaInformada && existente.senha === senhaInformada)) {
-          this.trocarPerfil(existente.id);
-          return existente;
-        } else if (senhaInformada && existente.senha !== senhaInformada) {
-          throw new Error('Já existe um perfil com esse nome. Entre com sua senha na aba "Entrar".');
-        } else {
-          loginFinal = loginFinal + '_' + Math.floor(10 + Math.random() * 90);
-        }
-      }
-
-      const novo = {
-        id: 'usr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-        nome,
-        login: loginFinal,
-        senha: senha ? senha.trim() : '',
-        avatar: avatar || AVATARES_PADRAO[0].url,
-        bio: bio?.trim() || 'Leitor no EleoQuadrinho 📚',
-        criadoEm: Date.now()
-      };
-
-      usuarios.push(novo);
-      this.salvarUsuarios();
-
-      try {
-        const histG = Store.get('historico', []);
-        if (histG.length && !Store.get('u:' + novo.id + ':historico')) {
-          Store.set('u:' + novo.id + ':historico', histG);
-          Store.set('u:' + novo.id + ':salvos', Store.get('salvos', {}));
-          Store.set('u:' + novo.id + ':avaliacoes', Store.get('avaliacoes', {}));
-          Store.set('u:' + novo.id + ':finais', Store.get('finais', {}));
-        }
-      } catch (e) { console.warn(e); }
-
-      this.trocarPerfil(novo.id);
-      return novo;
+    async cadastrar({ nome, login, email, senha }) {
+      const result = await EQAccount.api('signup', 'POST', { nome, login, email, senha });
+      abrirModalAuth('entrar', true);
+      $('#authNotice').textContent = result.message;
     },
-    entrar(termo, senha) {
-      termo = String(termo || '').trim();
-      senha = String(senha || '').trim();
-
-      if (!termo) {
-        if (usuarios.length === 1) {
-          this.trocarPerfil(usuarios[0].id);
-          return usuarios[0];
-        }
-        throw new Error('Informe seu nome ou login de usuário.');
-      }
-
-      const termoNorm = norm(termo);
-      const termoClean = termoNorm.replace(/[^a-z0-9_-]/g, '');
-
-      let u = usuarios.find(x => {
-        const xLogin = (x.login || '').toLowerCase();
-        const xNome = (x.nome || '').toLowerCase();
-        const xNomeNorm = norm(x.nome);
-        return xLogin === termoClean || xLogin === termo.toLowerCase() || xNomeNorm === termoNorm || xNome === termo.toLowerCase();
-      });
-
-      if (!u) {
-        u = usuarios.find(x => norm(x.nome).includes(termoNorm) || (x.login || '').includes(termoClean));
-      }
-
-      if (!u) {
-        if (usuarios.length === 1) {
-          u = usuarios[0];
-        } else {
-          throw new Error('Perfil não encontrado. Verifique a digitação ou crie uma conta na aba "Criar Perfil"!');
-        }
-      }
-
-      if (u.senha && senha && u.senha !== senha) {
-        throw new Error('Senha incorreta. Tente novamente.');
-      }
-
-      this.trocarPerfil(u.id);
-      return u;
+    async entrar(login, senha) {
+      if (accountUser) throw new Error('Saia da conta atual antes de entrar em outra.');
+      const result = await EQAccount.api('login', 'POST', { login, senha });
+      await this.carregarConta(result.user);
     },
-    trocarPerfil(id) {
-      usuarioAtivoId = id;
-      Store.set('usuarioAtivoId', id);
-      try { this.carregarDadosPerfil(); } catch (e) { console.warn(e); }
-      try { this.atualizarHeader(); } catch (e) { console.warn(e); }
-      try { renderContinuar(); } catch (e) { console.warn(e); }
-      try { if (abaAtual === 'perfil') renderPerfil(); } catch (e) { console.warn(e); }
-      try { if (abaAtual === 'historico') renderHistorico(); } catch (e) { console.warn(e); }
-      try { if (abaAtual === 'salvos') renderSalvos(); } catch (e) { console.warn(e); }
-      fecharModalAuth();
-      const u = this.usuario;
-      if (u) toast(`👋 Bem-vindo(a), ${u.nome}! Perfil ativo.`);
-    },
-    sair() {
-      usuarioAtivoId = null;
-      Store.set('usuarioAtivoId', null);
+    async carregarConta(user) {
+      const reader = new EQAccount.SyncDocument('state', user.id, syncStatus);
+      const catalog = new EQAccount.SyncDocument('catalog', user.id, syncStatus);
+      await reader.load();
+      if (user.role === 'admin') await catalog.load();
+      else {
+        const snapshot = await EQAccount.api('catalog', 'GET', undefined, user.id);
+        catalog.data = snapshot.data; catalog.revision = snapshot.revision; catalog.loaded = true;
+      }
+      readerSync = reader; catalogSync = catalog; accountUser = user;
       this.carregarDadosPerfil();
+      drive = catalog.data.drive || []; externas = catalog.data.externas || [];
+      herois = catalog.data.herois || []; series = catalog.data.series || [];
+      [...drive, ...externas, ...herois, ...series].forEach(reg);
+      Object.assign(prefs, reader.data.prefs || {});
       this.atualizarHeader();
-      fecharLeitores();
-      fecharCamada();
-      ir('inicio');
-      renderContinuar();
-      if (abaAtual === 'perfil') renderPerfil();
-      toast('Sessão encerrada.');
-      abrirModalAuth(usuarios.length ? 'entrar' : 'cadastro', true);
+      fecharModalAuth();
+      rota();
+      carregarArquivosLocais();
+      if (!reader.dirty && !catalog.dirty) syncStatus('Conta conectada. Dados carregados da nuvem.');
     },
-    excluirPerfil(id) {
-      usuarios = usuarios.filter(u => u.id !== id);
-      this.salvarUsuarios();
-      if (usuarioAtivoId === id) this.sair();
-      toast('Perfil removido.');
+    async sair() {
+      try {
+        await readerSync?.flush();
+        if (this.admin) await catalogSync?.flush();
+        await EQAccount.api('logout', 'POST', {});
+        location.replace(location.pathname);
+      } catch (error) { syncStatus('Não foi possível sair: ' + error.message, true); }
     },
     carregarDadosPerfil() {
-      const u = this.usuario;
-      if (u) {
-        historico = Store.get('u:' + u.id + ':historico', []);
-        salvos = Store.get('u:' + u.id + ':salvos', {});
-        avaliacoes = Store.get('u:' + u.id + ':avaliacoes', {});
-        finais = Store.get('u:' + u.id + ':finais', {});
-      } else {
-        historico = Store.get('historico', []);
-        salvos = Store.get('salvos', {});
-        avaliacoes = Store.get('avaliacoes', {});
-        finais = Store.get('finais', {});
-      }
-      if (!Array.isArray(historico)) historico = [];
-      if (!salvos || typeof salvos !== 'object') salvos = {};
-      if (!avaliacoes || typeof avaliacoes !== 'object') avaliacoes = {};
-      if (!finais || typeof finais !== 'object') finais = {};
+      const data = readerSync?.data || {};
+      historico = Array.isArray(data.historico) ? data.historico : [];
+      salvos = data.salvos || {}; avaliacoes = data.avaliacoes || {}; finais = data.finais || {};
     },
     salvarDadosPerfil() {
-      const u = this.usuario;
-      if (u) {
-        Store.set('u:' + u.id + ':historico', historico);
-        Store.set('u:' + u.id + ':salvos', salvos);
-        Store.set('u:' + u.id + ':avaliacoes', avaliacoes);
-        Store.set('u:' + u.id + ':finais', finais);
-      }
-      Store.set('historico', historico);
-      Store.set('salvos', salvos);
-      Store.set('avaliacoes', avaliacoes);
-      Store.set('finais', finais);
+      if (accountUser) readerSync.update({ historico, salvos, avaliacoes, finais });
     }
   };
-
-  Auth.carregarDadosPerfil();
 
   let drive = Store.get('drive', []);
   let externas = Store.get('externas', []);
@@ -1093,6 +982,13 @@
     });
   }
 
+  document.addEventListener('click', e => {
+    if (!Auth.admin && e.target.closest('[data-editar], [data-apagar], [data-add-serie], [data-add-heroi]')) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      toast('Somente o administrador pode editar ou excluir conteúdo.');
+    }
+  }, true);
+
   // Cliques do Explorador (tratados antes do manipulador global)
   document.addEventListener('click', (e) => {
     const t = e.target;
@@ -1483,7 +1379,7 @@
 
   async function abrirDetalhe(id) {
     if (!Auth.usuario) {
-      abrirModalAuth(usuarios.length ? 'entrar' : 'cadastro', true);
+      abrirModalAuth('entrar', true);
       toast('⚠️ Crie ou acesse sua conta para ver os detalhes.');
       return;
     }
@@ -1889,7 +1785,7 @@
 
   async function abrirLeitura(id, cap) {
     if (!Auth.usuario) {
-      abrirModalAuth(usuarios.length ? 'entrar' : 'cadastro', true);
+      abrirModalAuth('entrar', true);
       toast('⚠️ Crie ou acesse sua conta para ler.');
       return;
     }
@@ -2760,9 +2656,10 @@
   const BD = {
     db: null,
     abrir() {
+      if (!Auth.usuario) return Promise.reject(new Error('Entre na sua conta.'));
       if (this.db) return Promise.resolve(this.db);
       return new Promise((ok, erro) => {
-        const r = indexedDB.open('eleoquadrinho', 1);
+        const r = indexedDB.open('eleoquadrinho:' + Auth.usuario.id, 1);
         r.onupgradeneeded = () => r.result.createObjectStore('arquivos', { keyPath: 'id' });
         r.onsuccess = () => ok(this.db = r.result); r.onerror = () => erro(r.error);
       });
@@ -2818,6 +2715,7 @@
 
   const Biblioteca = {
     async importar(arquivos, opcoes = {}) {
+      if (!Auth.admin) return toast('Somente o administrador pode importar conteúdo.');
       arquivos = [...arquivos]; if (!arquivos.length) return;
       const imgs = arquivos.filter(f => IMG_RE.test(f.name)).sort((a, b) => ordenarNat(a.name, b.name));
       const outros = arquivos.filter(f => !IMG_RE.test(f.name)).sort((a, b) => ordenarNat(a.name, b.name));
@@ -2988,7 +2886,8 @@
       if (o.formato === 'txt') { const t = await o.blob.text(); return Leitor.abrir(it, { titulo: o.nome, sub: 'Texto local', fonte: 'Biblioteca local', secoes: [{ titulo: 'Introdução', paragrafos: t.split(/\n\s*\n/).map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean) }], irPara: cap }); }
     }
   };
-  BD.todos().then(async (l) => {
+  function carregarArquivosLocais() {
+    return BD.todos().then(async (l) => {
     l.forEach(o => Biblioteca.item(o));
     renderMinhasHQs();
     // Para qualquer PDF já salvo anteriormente sem capa, extrai automaticamente a 1ª página como capa!
@@ -3005,7 +2904,8 @@
       }
     }
     renderMinhasHQs();
-  }).catch(() => {});
+    }).catch(() => {});
+  }
 
   function linkDrive(url) {
     url = url.trim();
@@ -3120,13 +3020,14 @@
           <h2>${esc(u.nome)} <small style="font-size:14px;color:var(--acento);font-weight:600">@${esc(u.login)}</small></h2>
           <p>${esc(u.bio || 'Leitor no EleoQuadrinho')}</p>
           <div class="perfil-meta">
-            <span>📅 Membro desde ${dataCriacao}</span>
+            <span>${Auth.admin ? 'Administrador' : 'Leitor'}</span><span>📅 Membro desde ${dataCriacao}</span>
             <span>⭐ Nível: ${st.lidos >= 10 ? 'Lendário' : st.lidos >= 3 ? 'Veterano' : 'Iniciante'}</span>
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-sec" id="btnEditarPerfil" title="Alterar avatar, nome e bio">✏️ Editar Perfil</button>
-          <button class="btn btn-sec" id="btnTrocarPerfil" title="Alternar entre contas no navegador">🔄 Trocar Perfil</button>
+
+          <button class="btn btn-sec" id="btnMigrarPerfil">Importar dados antigos deste navegador</button>
           <button class="btn btn-sec" id="btnBackupPerfil" title="Baixar backup deste perfil (.eleo)">💾 Backup (.eleo)</button>
           <button class="btn btn-sec" id="btnSairPerfil" style="color:#ff7777">🚪 Sair</button>
         </div>
@@ -3163,8 +3064,8 @@
       ` : ''}
     `;
 
+    $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
     $('#btnEditarPerfil')?.addEventListener('click', () => abrirModalAuth('editar'));
-    $('#btnTrocarPerfil')?.addEventListener('click', () => abrirModalAuth('perfis'));
     $('#btnSairPerfil')?.addEventListener('click', () => { if (confirm('Deseja realmente sair da conta?')) Auth.sair(); });
     $('#btnBackupPerfil')?.addEventListener('click', () => {
       const dados = { versao: 4, app: 'EleoQuadrinho', usuario: u, historico, salvos, avaliacoes, finais };
@@ -3175,254 +3076,112 @@
     });
   }
 
+  // Old profiles were browser-only and cannot prove account ownership.
+  // Explicit import copies reading data only; it never imports passwords or roles.
+  function importarDadosAntigos() {
+    if (!Auth.usuario) return;
+    const legacy = (key, fallback) => {
+      try { return JSON.parse(localStorage.getItem('eq:' + key)) ?? fallback; } catch { return fallback; }
+    };
+    const oldUsers = legacy('usuarios', []);
+    const list = Array.isArray(oldUsers) ? oldUsers.filter(u => u && typeof u.id === 'string') : [];
+    abrirModalAuth('editar');
+    const content = $('#authConteudo');
+    content.innerHTML = `<h2>Importar dados deste navegador</h2>
+      <p>Os perfis antigos eram locais. Escolha seus dados para copiar para a conta atual. Senhas e permissões antigas não serão importadas. Dados já existentes na nuvem terão prioridade.</p>
+      <label for="legacyProfile">Perfil antigo</label><select id="legacyProfile"><option value="">Dados gerais do navegador</option>${list.map(u => `<option value="${esc(u.id)}">${esc(u.nome || u.login)}</option>`).join('')}</select>
+      <button class="btn btn-pri" id="legacyImport">Copiar dados de leitura</button>
+      ${Auth.admin ? '<p>O administrador também pode recuperar o catálogo antigo. Ele ficará disponível aos leitores após a sincronização.</p><button class="btn btn-sec" id="legacyCatalog">Importar catálogo antigo</button>' : ''}
+      <p id="legacyNotice" role="status"></p>`;
+    const mergeLists = (old, current) => [...new Map([...(Array.isArray(old) ? old : []), ...current].filter(x => x && typeof x.id === 'string').map(x => [x.id, x])).values()].slice(0, 5000);
+    $('#legacyImport').onclick = async () => {
+      const id = $('#legacyProfile').value;
+      const prefix = id ? 'u:' + id + ':' : '';
+      try {
+        historico = mergeLists(legacy(prefix + 'historico', []), historico);
+        salvos = { ...legacy(prefix + 'salvos', {}), ...salvos };
+        avaliacoes = { ...legacy(prefix + 'avaliacoes', {}), ...avaliacoes };
+        finais = { ...legacy(prefix + 'finais', {}), ...finais };
+        Auth.salvarDadosPerfil(); await readerSync.flush();
+        $('#legacyNotice').textContent = 'Dados de leitura importados e salvos na conta.';
+      } catch (error) { $('#legacyNotice').textContent = error.message; }
+    };
+    $('#legacyCatalog')?.addEventListener('click', async () => {
+      if (!Auth.admin || !confirm('Publicar o catálogo antigo deste navegador para os leitores?')) return;
+      try {
+        drive = mergeLists(legacy('drive', []), drive); externas = mergeLists(legacy('externas', []), externas);
+        herois = mergeLists(legacy('herois', []), herois); series = mergeLists(legacy('series', []), series);
+        catalogSync.update({ drive, externas, herois, series });
+        await catalogSync.flush(); [...drive, ...externas, ...herois, ...series].forEach(reg);
+        $('#legacyNotice').textContent = 'Catálogo importado. Arquivos locais PDF/CBZ continuam apenas neste navegador.';
+      } catch (error) { $('#legacyNotice').textContent = error.message; }
+    });
+  }
+
   /* ---------------- Modal de Autenticação ---------------- */
   let authAvatarSelecionado = AVATARES_PADRAO[0].url;
 
   function abrirModalAuth(aba = 'entrar', obrigatorio = false) {
     const modal = $('#modalAuth');
     const conteudo = $('#authConteudo');
-    if (!modal || !conteudo) return;
-
+    conteudo.onclick = e => e.stopPropagation();
     const u = Auth.usuario;
-    const perfisSalvos = usuarios;
-    const ehObrigatorio = !u || obrigatorio;
-
-    if (ehObrigatorio) {
-      modal.classList.add('auth-obrigatorio');
-      if (!perfisSalvos.length) aba = 'cadastro';
-    } else {
-      modal.classList.remove('auth-obrigatorio');
-    }
-
-    authAvatarSelecionado = (aba === 'editar' && u?.avatar) ? u.avatar : AVATARES_PADRAO[0].url;
-
-    const renderAbasModal = (abaAtiva) => {
-      let cabecalhoHtml = '';
-      if (ehObrigatorio) {
-        cabecalhoHtml = `
-          <div class="auth-header-destaque">
-            <div class="auth-logo-simbolo">⚡</div>
-            <h2>Eleo<b>Quadrinho</b></h2>
-            <p class="auth-sub">Acesso exclusivo para leitores cadastrados</p>
-          </div>
-          <div class="auth-aviso-obrigatorio">
-            <span>🔒 <b>Crie ou acesse seu perfil de leitor</b> para desbloquear todas as HQs, lore oficial de Runeterra e sincronizar seu histórico.</span>
-          </div>`;
-      }
-
-      let abasHtml = '';
-      if (abaAtiva !== 'editar') {
-        abasHtml = `
-          <div class="auth-abas">
-            <button class="${abaAtiva === 'entrar' ? 'ativo' : ''}" data-auth-aba="entrar">🔑 Entrar</button>
-            <button class="${abaAtiva === 'cadastro' ? 'ativo' : ''}" data-auth-aba="cadastro">✨ Criar Perfil</button>
-            ${perfisSalvos.length ? `<button class="${abaAtiva === 'perfis' ? 'ativo' : ''}" data-auth-aba="perfis">👥 Perfis (${perfisSalvos.length})</button>` : ''}
-          </div>`;
-      } else {
-        abasHtml = `<h3 style="margin-bottom:14px;color:var(--acento)">✏️ Editar Perfil de ${esc(u.nome)}</h3>`;
-      }
-
-      let formHtml = '';
-      if (abaAtiva === 'entrar') {
-        formHtml = `
-          <form class="auth-form" id="formAuthLogin">
-            ${perfisSalvos.length ? `
-            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:6px">
-              <small style="color:var(--txt2);display:block;margin-bottom:8px;font-weight:700">Perfis salvos (toque para entrar direto):</small>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                ${perfisSalvos.map(p => `
-                  <button type="button" class="btn btn-sec" data-auth-trocar="${esc(p.id)}" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:20px;font-size:12.5px">
-                    <img src="${esc(p.avatar)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover" onerror="this.src='${AVATARES_PADRAO[0].url}'">
-                    <b>${esc(p.nome)}</b>
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-            ` : ''}
-            <div>
-              <label>Seu Nome ou Usuário</label>
-              <input type="text" id="authLoginInput" placeholder="Ex: Leo Souza ou leo" required autocomplete="username" />
-            </div>
-            <div>
-              <label>Senha (opcional)</label>
-              <input type="password" id="authSenhaInput" placeholder="Sua senha ou deixe em branco" autocomplete="current-password" />
-            </div>
-            <button type="submit" class="btn btn-pri" style="margin-top:6px">Entrar</button>
-            <p style="text-align:center;font-size:12.5px;color:var(--txt2);margin-top:4px">Não tem conta? <a href="#" id="linkIrCadastro" style="color:var(--acento);font-weight:700">Criar agora</a></p>
-          </form>`;
-      } else if (abaAtiva === 'cadastro' || abaAtiva === 'editar') {
-        const ehEdicao = abaAtiva === 'editar';
-        formHtml = `
-          <form class="auth-form" id="formAuthCadastro">
-            <div>
-              <label>Seu Nome ou Apelido</label>
-              <input type="text" id="authNomeInput" placeholder="Ex: Leo Souza" value="${esc(ehEdicao ? u.nome : '')}" required />
-            </div>
-            <div>
-              <label>Senha (opcional)</label>
-              <input type="password" id="authSenhaCadInput" placeholder="${ehEdicao ? 'Deixar em branco para não alterar' : 'Crie uma senha ou deixe em branco'}" autocomplete="new-password" />
-            </div>
-            <div>
-              <label>Bio / Lema do Leitor (opcional)</label>
-              <input type="text" id="authBioInput" placeholder="Ex: Apaixonado por Runeterra e Marvel" value="${esc(ehEdicao ? u.bio || '' : '')}" />
-            </div>
-            <div>
-              <label>Escolha seu Avatar ou Envie uma Foto</label>
-              <div class="grade-avatares">
-                ${AVATARES_PADRAO.map(av => `
-                  <button type="button" class="avatar-opcao ${authAvatarSelecionado === av.url ? 'selecionado' : ''}" data-avatar-url="${esc(av.url)}" title="${esc(av.nome)}">
-                    <img src="${esc(av.url)}" alt="${esc(av.nome)}">
-                  </button>
-                `).join('')}
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-                <label class="btn btn-sec" style="font-size:12px;cursor:pointer;flex:1;text-align:center">
-                  📷 Enviar foto própria
-                  <input type="file" id="authFotoInput" accept="image/*" hidden />
-                </label>
-                <div class="avatar-header" id="authPreviewFoto" style="width:36px;height:36px">
-                  <img src="${esc(authAvatarSelecionado)}" alt="">
-                </div>
-              </div>
-            </div>
-            <button type="submit" class="btn btn-pri" style="margin-top:10px">${ehEdicao ? 'Salvar Alterações' : 'Criar Perfil e Entrar'}</button>
-            ${!ehEdicao ? `<p style="text-align:center;font-size:12.5px;color:var(--txt2);margin-top:6px">Já possui uma conta? <a href="#" id="linkIrLogin" style="color:var(--acento);font-weight:700">Entrar</a></p>` : ''}
-          </form>`;
-      } else if (abaAtiva === 'perfis') {
-        formHtml = `
-          <div style="margin-bottom:8px">
-            <small class="ajuda" style="display:block;margin-bottom:8px">Toque em qualquer perfil para alternar instantaneamente:</small>
-            <div class="auth-perfis-salvos">
-              ${perfisSalvos.map(p => `
-                <div class="item-perfil-salvo ${p.id === Auth.usuario?.id ? 'atual' : ''}" data-auth-trocar="${esc(p.id)}">
-                  <img src="${esc(p.avatar)}" alt="${esc(p.nome)}" onerror="this.src='${AVATARES_PADRAO[0].url}'">
-                  <div style="flex:1;min-width:0">
-                    <b style="font-size:14px;color:var(--txt)">${esc(p.nome)}</b>
-                    <small style="display:block;font-size:12px;color:var(--txt2)">@${esc(p.login)} ${p.id === Auth.usuario?.id ? '· (Ativo)' : ''}</small>
-                  </div>
-                  <button type="button" class="btn-icone" data-auth-del="${esc(p.id)}" title="Remover este perfil" style="width:28px;height:28px;font-size:12px">✕</button>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-          <button type="button" class="btn btn-sec" id="btnCriarOutroPerfil" style="width:100%;margin-top:10px">➕ Adicionar Outro Perfil</button>`;
-      }
-
-      conteudo.innerHTML = cabecalhoHtml + abasHtml + formHtml;
-
-      // Eventos das abas internas do modal
-      $$('[data-auth-aba]', conteudo).forEach(b => {
-        b.onclick = () => renderAbasModal(b.dataset.authAba);
-      });
-      $('#linkIrCadastro')?.addEventListener('click', (e) => { e.preventDefault(); renderAbasModal('cadastro'); });
-      $('#linkIrLogin')?.addEventListener('click', (e) => { e.preventDefault(); renderAbasModal('entrar'); });
-      $('#btnCriarOutroPerfil')?.addEventListener('click', () => renderAbasModal('cadastro'));
-
-      // Eventos de seleção de avatar
-      $$('.avatar-opcao', conteudo).forEach(b => {
-        b.onclick = () => {
-          $$('.avatar-opcao', conteudo).forEach(x => x.classList.remove('selecionado'));
-          b.classList.add('selecionado');
-          authAvatarSelecionado = b.dataset.avatarUrl;
-          const prev = $('#authPreviewFoto img');
-          if (prev) prev.src = authAvatarSelecionado;
-        };
-      });
-
-      // Foto própria
-      const inpFoto = $('#authFotoInput');
-      if (inpFoto) {
-        inpFoto.onchange = async () => {
-          const file = inpFoto.files?.[0];
-          if (!file) return;
-          try {
-            const dataUrl = await miniatura(file, 240);
-            if (dataUrl) {
-              authAvatarSelecionado = dataUrl;
-              $$('.avatar-opcao', conteudo).forEach(x => x.classList.remove('selecionado'));
-              const prev = $('#authPreviewFoto img');
-              if (prev) prev.src = dataUrl;
-              toast('📷 Foto de perfil carregada!');
-            }
-          } catch { toast('Erro ao processar imagem.'); }
-        };
-      }
-
-      // Login submit
-      $('#formAuthLogin')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        try {
-          const loginVal = $('#authLoginInput')?.value || '';
-          const senhaVal = $('#authSenhaInput')?.value || '';
-          Auth.entrar(loginVal, senhaVal);
-        } catch (err) { toast('⚠️ ' + err.message); }
-      });
-
-      // Cadastro / Edição submit
-      $('#formAuthCadastro')?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (abaAtiva === 'editar' && u) {
-          u.nome = $('#authNomeInput').value.trim() || u.login;
-          u.bio = $('#authBioInput')?.value?.trim() || '';
-          u.avatar = authAvatarSelecionado;
-          if ($('#authSenhaCadInput')?.value) u.senha = $('#authSenhaCadInput').value;
-          Auth.salvarUsuarios();
-          Auth.atualizarHeader();
-          try { if (abaAtual === 'perfil') renderPerfil(); } catch (err) { console.warn(err); }
-          fecharModalAuth();
-          toast('✅ Perfil atualizado com sucesso!');
-        } else {
-          try {
-            const nomeVal = $('#authNomeInput')?.value || '';
-            const senhaVal = $('#authSenhaCadInput')?.value || '';
-            const bioVal = $('#authBioInput')?.value || '';
-            Auth.cadastrar({
-              nome: nomeVal,
-              senha: senhaVal,
-              avatar: authAvatarSelecionado,
-              bio: bioVal
-            });
-          } catch (err) { toast('⚠️ ' + err.message); }
-        }
-      });
-
-      // Trocar perfil / excluir perfil
-      $$('[data-auth-trocar]', conteudo).forEach(div => {
-        div.onclick = (e) => {
-          if (e.target.closest('[data-auth-del]')) return;
-          Auth.trocarPerfil(div.dataset.authTrocar);
-        };
-      });
-      $$('[data-auth-del]', conteudo).forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          if (confirm('Tem certeza que deseja remover este perfil do navegador?')) {
-            Auth.excluirPerfil(btn.dataset.authDel);
-            renderAbasModal('perfis');
-          }
-        };
-      });
-    };
-
-    renderAbasModal(aba);
+    if (aba === 'perfis') aba = 'entrar';
+    const edit = aba === 'editar' && !!u;
+    const signup = aba === 'cadastro';
+    authAvatarSelecionado = u?.avatar || AVATARES_PADRAO[0].url;
+    modal.classList.toggle('auth-obrigatorio', !u || obrigatorio);
+    modal.setAttribute('aria-hidden', 'false');
     modal.classList.add('aberta');
     document.body.style.overflow = 'hidden';
+    conteudo.innerHTML = `
+      <h2>${edit ? 'Editar meu perfil' : signup ? 'Criar conta de leitor' : 'Entrar no EleoQuadrinho'}</h2>
+      <p id="authNotice" role="status" class="ajuda">${edit ? 'Seu perfil acompanha sua conta.' : 'Acesse seus dados de leitura em qualquer dispositivo.'}</p>
+      ${!edit ? `<div class="auth-abas"><button type="button" data-conta-aba="entrar">Entrar</button><button type="button" data-conta-aba="cadastro">Criar conta</button></div>` : ''}
+      <form class="auth-form" id="formConta">
+        ${signup || edit ? `<label for="authNomeInput">Nome ou apelido</label><input id="authNomeInput" maxlength="80" required value="${esc(edit ? u.nome : '')}">` : ''}
+        ${!edit ? `<label for="authLoginInput">${signup ? 'Login (letras, números, _ ou -)' : 'Login ou e-mail'}</label><input id="authLoginInput" autocomplete="username" required ${signup ? 'pattern="[A-Za-z0-9_-]{3,32}" maxlength="32"' : 'maxlength="254"'}>` : ''}
+        ${signup ? '<label for="authEmailInput">E-mail para confirmação da conta</label><input id="authEmailInput" type="email" autocomplete="email" maxlength="254" required>' : ''}
+        ${!edit ? `<label for="authSenhaInput">Senha</label><input id="authSenhaInput" type="password" minlength="10" maxlength="128" required autocomplete="${signup ? 'new-password' : 'current-password'}">` : ''}
+        ${signup ? '<p class="ajuda">Use pelo menos 10 caracteres. Espaços fazem parte da senha. Novas contas têm permissão de leitor.</p>' : ''}
+        ${edit ? `<label for="authBioInput">Bio</label><input id="authBioInput" maxlength="500" value="${esc(u.bio)}"><label for="authFotoInput">Foto do perfil</label><input id="authFotoInput" type="file" accept="image/*">` : ''}
+        <button type="submit" class="btn btn-pri">${edit ? 'Salvar perfil' : signup ? 'Criar conta' : 'Entrar'}</button>
+      </form>`;
+    $$('[data-conta-aba]', conteudo).forEach(button => button.onclick = () => abrirModalAuth(button.dataset.contaAba));
+    $('#authFotoInput')?.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (file) authAvatarSelecionado = await miniatura(file, 240) || authAvatarSelecionado;
+    });
+    $('#formConta').onsubmit = async e => {
+      e.preventDefault();
+      const button = e.target.querySelector('[type="submit"]'); button.disabled = true;
+      const notice = $('#authNotice'); notice.textContent = 'Aguarde…';
+      try {
+        if (edit) {
+          const result = await EQAccount.api('profile', 'PATCH', { nome: $('#authNomeInput').value, bio: $('#authBioInput').value, avatar: authAvatarSelecionado }, u.id);
+          accountUser = result.user; Auth.atualizarHeader(); renderPerfil(); fecharModalAuth();
+        } else if (signup) {
+          await Auth.cadastrar({ nome: $('#authNomeInput').value, login: $('#authLoginInput').value, email: $('#authEmailInput').value, senha: $('#authSenhaInput').value });
+        } else await Auth.entrar($('#authLoginInput').value, $('#authSenhaInput').value);
+      } catch (error) { notice.textContent = error.message; }
+      finally { button.disabled = false; }
+    };
   }
 
   function fecharModalAuth() {
-    if (!Auth.usuario) {
-      toast('⚠️ Crie uma conta ou faça login para acessar o sistema.');
-      return;
-    }
-    const modal = $('#modalAuth');
-    modal?.classList.remove('aberta', 'auth-obrigatorio');
-    if (!leitorAberto() && !$('#detalhe')?.classList.contains('aberta')) {
-      document.body.style.overflow = '';
-    }
+    if (!Auth.usuario) return;
+    $('#modalAuth').classList.remove('aberta');
+    $('#modalAuth').setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
   }
 
   async function renderBiblioteca() {
     const el = $('#aba-biblioteca');
+    if (!Auth.admin) {
+      el.innerHTML = '<div class="secao-cab"><div><h2>Biblioteca</h2><p>Obras publicadas pelo administrador. Use Salvos para organizar suas leituras.</p></div></div>' +
+        `<div class="grade">${[...externas, ...drive, ...series].map(it => cartao(REG.get(it.id) || reg(it))).join('')}</div>`;
+      return;
+    }
     // Garante que campeões do LoL já estejam disponíveis na lista de heróis
     Dados.lol().then(() => { atualizarSelectHerois(); atualizarResumoHeroiSelecionado(); }).catch(() => {});
 
@@ -4793,7 +4552,7 @@
     if (!Auth.usuario) {
       e.preventDefault();
       e.stopPropagation();
-      abrirModalAuth(usuarios.length ? 'entrar' : 'cadastro', true);
+      abrirModalAuth('entrar', true);
       toast('⚠️ Crie uma conta ou faça login para acessar o EleoQuadrinho.');
       return;
     }
@@ -5189,9 +4948,39 @@
   }
 
   /* ---------------- Início ---------------- */
-  rota();
+  // Supabase confirmation links may include an access token in the fragment.
+  // Never persist it: this application establishes sessions via HttpOnly cookies.
+  if (/^#(?:access_token|error|type)=/.test(location.hash)) history.replaceState(null, '', location.pathname);
   Auth.atualizarHeader();
-  if (!Auth.usuario) {
-    abrirModalAuth(usuarios.length ? 'entrar' : 'cadastro', true);
-  }
+  abrirModalAuth('entrar', true);
+  $('#authNotice').textContent = 'Verificando sessão…';
+  (async () => {
+    try {
+      const result = await EQAccount.api('session');
+      await Auth.carregarConta(result.user);
+    } catch (error) {
+      $('#authNotice').textContent = error.status === 401 ? 'Entre com seu login ou e-mail e senha.' : error.message;
+    }
+  })();
+  $('#syncRetry').onclick = async () => {
+    try { await readerSync?.flush(); if (Auth.admin) await catalogSync?.flush(); }
+    catch (error) { syncStatus(error.message, true); }
+  };
+  $('#syncBackup').onclick = () => {
+    if (!Auth.usuario) return;
+    const data = { usuario: Auth.usuario, leitura: readerSync?.data, ...(Auth.admin ? { catalogo: catalogSync?.data } : {}) };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'eleoquadrinho-pendente.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  $('#syncReload').onclick = () => {
+    if (!confirm('As alterações pendentes serão descartadas. Baixou o backup? Carregar a versão da nuvem?')) return;
+    if (readerSync) localStorage.removeItem(readerSync.key);
+    if (catalogSync) localStorage.removeItem(catalogSync.key);
+    location.reload();
+  };
+  window.addEventListener('online', () => $('#syncRetry').click());
+  window.addEventListener('beforeunload', e => {
+    if (readerSync?.dirty || (Auth.admin && catalogSync?.dirty)) { e.preventDefault(); e.returnValue = ''; }
+  });
 })();

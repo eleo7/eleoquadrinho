@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5b301" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=accounts-20261017-2" />
 </head>
 <body>
   <header class="topo">
@@ -23,7 +23,7 @@
       <svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 105.3 14l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"/></svg>
       <input id="buscaRapida" type="search" placeholder="Buscar campeões, heróis, deuses, HQs..." autocomplete="off" />
     </div>
-    <button class="btn btn-pri" data-ir="biblioteca" style="padding:8px 14px;font-size:13px;white-space:nowrap" title="Importar HQ de outro site, Google Drive ou PC">➕ Adicionar HQ</button>
+    <button class="btn btn-pri" data-ir="biblioteca" style="padding:8px 14px;font-size:13px;white-space:nowrap" title="Importar HQ de outro site, Google Drive ou PC">📚 Biblioteca</button>
     <button class="btn-icone" id="btnSorteio" title="Me surpreenda (leitura aleatória)">🎲</button>
     <button class="btn-perfil-header" id="btnPerfilTopo" title="Meu Perfil e Contas">
       <span class="avatar-header" id="headerAvatar">👤</span>
@@ -31,6 +31,12 @@
     </button>
   </header>
 
+  <aside id="syncStatus" hidden aria-live="polite">
+    <span id="syncMessage"></span>
+    <button id="syncRetry" type="button">Tentar sincronizar</button>
+    <button id="syncBackup" type="button">Baixar backup</button>
+    <button id="syncReload" type="button">Carregar da nuvem</button>
+  </aside>
   <main id="app">
     <section class="aba ativa" id="aba-inicio"></section>
     <section class="aba" id="aba-busca"></section>
@@ -154,12 +160,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/fontes.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/data.js?v=accounts-20261017-2"></script>
+  <script src="js/fontes.js?v=accounts-20261017-2"></script>
+  <script src="js/account-client.js?v=accounts-20261017-2"></script>
+  <script src="js/app.js?v=accounts-20261017-2"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=accounts-20261017-2', { updateViaCache: 'none' }).catch(() => {});
     }
   </script>
 </body>

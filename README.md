@@ -30,3 +30,12 @@ Para publicar este projeto na Vercel:
    npm i -g vercel
    vercel
    ```
+
+
+## Contas, administrador e sincronização
+
+O login agora depende de Supabase Auth e da API da Vercel. Cadastros são leitores; o administrador `Eleo7` é provisionado por um script seguro. Histórico, favoritos e preferências ficam associados à conta. Arquivos locais de HQ continuam no dispositivo.
+
+Siga [a configuração de contas na Vercel](docs/CONTAS-VERCEL.md) para criar o banco, configurar as variáveis, provisionar o administrador e validar o deployment. Não inclua senhas ou chaves no código.
+
+Para desenvolvimento: `npm ci`, `npm test` e `npm run dev` (Node.js 22+). O build gera apenas os arquivos públicos em `dist`.

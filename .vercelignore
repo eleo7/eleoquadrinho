@@ -1,0 +1,10 @@
+.git/
+.vercel/
+node_modules/
+dist/
+.env
+.env.*
+tests/
+docs/
+supabase/
+scripts/create-admin.js
