@@ -127,3 +127,5 @@ A leitura das capas exige sessão válida e uma referência publicada no catálo
 A Biblioteca separa **Na nuvem** (catálogo compartilhado e publicação pelo administrador) de **Neste dispositivo** (arquivos da conta guardados no navegador). As cópias locais de HQs já publicadas também aparecem na aba do dispositivo; o botão Ler dessa aba usa o arquivo local, sem solicitar novo download da nuvem. Isso não representa um modo offline completo: autenticação e bibliotecas auxiliares ainda podem precisar de conexão.
 
 A importação local e os pacotes ficam em **Neste dispositivo**; expanda **Transferir HQs entre dispositivos** para exportar/importar pacotes. As abas aceitam clique e teclado (setas, Home e End). No celular, o cabeçalho tem duas linhas, mantém perfil e busca acessíveis, e o acesso à biblioteca continua no menu inferior.
+
+O administrador pode remover uma cópia na aba **Neste dispositivo** sem excluir a HQ correspondente do catálogo da nuvem. A exclusão do conteúdo compartilhado continua na aba **Na nuvem**.

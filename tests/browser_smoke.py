@@ -139,7 +139,13 @@ with sync_playwright() as p:
     admin_page.locator('#bibDevice [data-ler="local:legacy"]').click()
     admin_page.wait_for_function("document.querySelector('#ltTexto').textContent.includes('Conteudo antigo.')")
     admin_page.locator('#leitorTexto [data-fechar-leitor]').click()
+    admin_page.once('dialog', lambda dialog: dialog.accept())
+    admin_page.locator('#bibDevice [data-apagar="local:legacy"]').click()
+    admin_page.wait_for_function("!document.querySelector('#bibDevice [data-ler=\"local:legacy\"]')")
+    assert any(item['id']=='local:legacy' for item in catalog['data']['externas'])
     admin_page.locator('#tabCloud').click()
+    assert admin_page.locator('#bibCloud [data-ler="local:legacy"]').count() == 1
+    print('Removing a local copy preserves the shared cloud HQ: PASS')
     admin.unroute('**/api/account?action=file-read*')
     print('Published HQ copy reads locally without a cloud download: PASS')
     admin_page.locator('#extTitulo').fill('HQ compartilhada')

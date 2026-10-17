@@ -4816,6 +4816,17 @@
       toast('⚠️ Crie uma conta ou faça login para acessar o EleoQuadrinho.');
       return;
     }
+    const localDelete = t.closest('[data-device-library] [data-apagar]');
+    if (localDelete) {
+      if (!Auth.admin) return;
+      if (!confirm('Remover somente a cópia deste dispositivo? A versão publicada na nuvem será mantida.')) return;
+      const id = localDelete.dataset.apagar;
+      await BD.apagar(id);
+      const shared = externas.find(item => item.id === id);
+      if (shared) reg(shared); else REG.delete(id);
+      renderMinhasHQs();
+      return renderBiblioteca();
+    }
     const localRead = t.closest('[data-device-library] [data-ler]');
     if (localRead) {
       const item = REG.get(localRead.dataset.ler);
