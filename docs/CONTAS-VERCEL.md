@@ -121,3 +121,9 @@ Antes de sincronizar o catálogo, o cliente extrai imagens `data:image` e envia 
 Catálogos antigos e alterações locais pendentes são convertidos no próximo acesso do administrador ou em **Tentar sincronizar**, respeitando a revisão existente. A atualização só é confirmada depois de todas as capas serem enviadas e o banco aceitar a revisão. Não descarte o backup/pendências para migrar. Se houver conflito entre dispositivos, o fluxo de conflito existente continua protegendo as alterações.
 
 A leitura das capas exige sessão válida e uma referência publicada no catálogo; o endpoint redireciona para um endereço assinado de uma hora. Os arquivos continuam privados. O backend não aceita caminhos arbitrários para leitura. A saída da conta continua independente de falhas de sincronização.
+
+### Navegação e origem das HQs
+
+A Biblioteca separa **Na nuvem** (catálogo compartilhado e publicação pelo administrador) de **Neste dispositivo** (arquivos da conta guardados no navegador). As cópias locais de HQs já publicadas também aparecem na aba do dispositivo; o botão Ler dessa aba usa o arquivo local, sem solicitar novo download da nuvem. Isso não representa um modo offline completo: autenticação e bibliotecas auxiliares ainda podem precisar de conexão.
+
+A importação local e os pacotes ficam em **Neste dispositivo**; expanda **Transferir HQs entre dispositivos** para exportar/importar pacotes. As abas aceitam clique e teclado (setas, Home e End). No celular, o cabeçalho tem duas linhas, mantém perfil e busca acessíveis, e o acesso à biblioteca continua no menu inferior.

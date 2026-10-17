@@ -525,7 +525,7 @@
         <button class="acao-salvar ${salvos[it.id] ? 'on' : ''}" data-salvar="${esc(it.id)}" title="Salvar">🔖</button>
         ${h && h.prog > 0 ? `<div class="barra-prog"><i style="width:${Math.round(h.prog * 100)}%"></i></div>` : ''}
       </div>
-      <h4>${esc(it.titulo)}</h4><p>${it.localOnly ? 'Somente neste navegador · ' : ''}${esc(descTxt)}</p>
+      <h4>${esc(it.titulo)}</h4><p>${it.localOnly ? '<span class="origem-hq">Neste dispositivo</span>' : it.storagePath ? '<span class="origem-hq">Na nuvem</span>' : ''}${esc(descTxt)}</p>
       ${ehMeu ? `<div class="cartao-acoes">
         ${ehSerie ? `<button type="button" data-add-serie="${esc(it.id)}" title="Adicionar nova edição nesta série">➕ +Ed</button>` : ''}
         <button type="button" data-editar="${esc(it.id)}" title="Editar ${esc(it.titulo)}">✏️ Editar</button>
@@ -3305,16 +3305,16 @@
   }
 
   function painelLocal() {
-    return `<div class="painel" style="margin-bottom:20px;padding:16px"><h3>Minha biblioteca neste navegador</h3>
-      <p>Arquivos pessoais, disponíveis somente nesta conta e neste navegador. Não são enviados à nuvem nem compartilhados. O espaço depende do dispositivo; limpar os dados do navegador pode apagar as HQs. Mantenha os arquivos originais como backup.</p>
+    return `<div class="painel" style="margin-bottom:20px;padding:16px"><h3>Adicionar arquivos neste dispositivo</h3>
+      <p>Arquivos ficam só nesta conta e neste navegador, sem ocupar a nuvem. Mantenha um backup: limpar os dados do navegador pode apagá-los.</p>
       <label class="btn btn-sec">Guardar HQs apenas neste navegador<input id="localHQInput" type="file" accept=".pdf,.cbz,.zip,.epub,.txt,.md,image/*" multiple hidden></label>
       <p id="localSpace" role="status"></p>
-      <h4>Transferir HQs para outro dispositivo</h4>
+      <details class="pacotes-hq"><summary>Transferir HQs entre dispositivos</summary>
       <p>Selecione arquivos salvos neste navegador. O pacote inclui HQs, capas e informações, sem perfil, histórico ou favoritos. Até 500 MB por pacote; prefira lotes pequenos no celular.</p>
       <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
       <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
       <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" accept=".eleohq,.zip" hidden></label>
-      <p id="hqPackageStatus" role="status"></p></div>`;
+      </details><p id="hqPackageStatus" role="status"></p></div>`;
   }
   function configurarLocal() {
     const input = $('#localHQInput');
@@ -3388,13 +3388,48 @@
     } catch { el.textContent = 'Não foi possível verificar o espaço da nuvem. Você pode guardar HQs apenas neste navegador.'; }
   }
 
+  let bibliotecaOrigem = 'cloud';
+  function abasBiblioteca() {
+    return `<h2>Biblioteca</h2><div class="biblioteca-abas" role="tablist" aria-label="Local dos arquivos">
+      <button id="tabCloud" role="tab" data-bib-origem="cloud" aria-controls="bibCloud">☁️ Na nuvem</button>
+      <button id="tabDevice" role="tab" data-bib-origem="device" aria-controls="bibDevice">📱 Neste dispositivo</button>
+    </div>`;
+  }
+  function configurarAbasBiblioteca() {
+    const buttons = [...document.querySelectorAll('[data-bib-origem]')];
+    function select(origin, focus = false) {
+      bibliotecaOrigem = origin;
+      buttons.forEach(button => {
+        const active = button.dataset.bibOrigem === origin;
+        button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
+        document.getElementById(button.getAttribute('aria-controls')).hidden = !active;
+        if (active && focus) button.focus();
+      });
+    }
+    buttons.forEach(button => {
+      button.onclick = () => select(button.dataset.bibOrigem);
+      button.onkeydown = e => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+        e.preventDefault();
+        select(e.key === 'Home' ? 'cloud' : e.key === 'End' ? 'device' : bibliotecaOrigem === 'cloud' ? 'device' : 'cloud', true);
+      };
+    });
+    select(itemParaEditar ? 'cloud' : bibliotecaOrigem);
+  }
+  function listaDispositivo(items) {
+    return `<p class="biblioteca-ajuda">Arquivos guardados nesta conta e neste navegador. Eles não acompanham seu login em outro dispositivo; use um pacote de HQs para transferir.</p>` +
+      (items.length ? `<div class="grade" data-device-library>${items.map(it => cartao({ ...it, localOnly: true })).join('')}</div>` : '<div class="vazio">Nenhuma HQ guardada neste dispositivo. Importe um arquivo ou um pacote acima para começar.</div>');
+  }
+
   async function renderBiblioteca() {
     const el = $('#aba-biblioteca');
     if (!Auth.admin) {
-      const pessoais = (await BD.todos()).filter(o => !externas.some(x => x.id === o.id)).map(o => Biblioteca.item(o));
-      el.innerHTML = painelLocal() + '<div class="secao-cab"><div><h2>Biblioteca</h2><p>Obras publicadas pelo administrador. Use Salvos para organizar suas leituras.</p></div></div>' +
-        `<div class="grade">${[...pessoais, ...externas, ...drive, ...series].map(it => cartao(REG.get(it.id) || reg(it))).join('')}</div>`;
-      configurarLocal();
+      const pessoais = (await BD.todos()).map(o => Biblioteca.item(o));
+      const nuvem = [...externas, ...drive, ...series];
+      el.innerHTML = abasBiblioteca() +
+        `<section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud"><p class="biblioteca-ajuda">Obras compartilhadas pelo administrador, disponíveis na sua conta em outros dispositivos. A leitura usa internet.</p><div class="grade">${nuvem.map(it => cartao(reg(it))).join('')}</div>${!nuvem.length ? '<div class="vazio">Ainda não há obras publicadas na nuvem.</div>' : ''}</section>` +
+        `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}${listaDispositivo(pessoais)}</section>`;
+      configurarLocal(); configurarAbasBiblioteca();
       return;
     }
     // Garante que campeões do LoL já estejam disponíveis na lista de heróis
@@ -3411,7 +3446,8 @@
       <option value="folclore">Folclore Brasileiro</option>
       <option value="originais">Independentes / Outros</option>`;
 
-    el.innerHTML = painelLocal() + `
+    el.innerHTML = abasBiblioteca() + `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}<div id="bibLocais"></div></section><section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud">
+      <p class="biblioteca-ajuda">Catálogo compartilhado com os leitores. Publique aqui as HQs que devem aparecer em outras contas e dispositivos.</p>
       <p id="cloudSpace" role="status">Conferindo espaço da nuvem…</p>
       <div class="secao-cab"><div><p>Arquivos enviados aqui ficam disponíveis a todos os leitores após a publicação (até 500 MB por HQ).</p>
         <button class="btn btn-pri" id="btnPublicarLocais">Publicar HQs já salvas neste navegador</button>
@@ -3639,7 +3675,7 @@
       </div>
       <div id="bibSeries"></div>
       <div id="bibHerois"></div>
-      <div id="bibLista">${carregando()}</div>`;
+      <div id="bibLista">${carregando()}</div></section>`;
 
     // Estado local de capas em DataURL (upload do computador), arquivo PDF/CBZ anexado e IDs em edição
     let capaObraDataUrl = '';
@@ -4735,7 +4771,8 @@
     function renderListaBiblioteca() {
       const extIts = externas.map(x => REG.get(x.id) || reg(x));
       const driveIts = drive.map(d => REG.get(d.id) || reg(d));
-      const todos = [...new Map([...locais, ...extIts, ...driveIts].map(it => [it.id, it])).values()];
+      const todos = [...new Map([...extIts, ...driveIts].map(it => [it.id, it])).values()];
+      $('#bibLocais').innerHTML = listaDispositivo(locais);
       $('#bibLista').innerHTML = secao('Minhas HQs, Edições, Mangás, Lores, Arquivos & Google Drive', `${todos.length} item(ns) · Use ✏️ Editar ou 🗑 Remover em qualquer cartão`, todos.length
         ? `<div class="grade">${todos.map(i => cartao(i)).join('')}</div>`
         : '<div class="vazio"><div class="em">📂</div>Sua biblioteca pessoal está vazia. Adicione uma Coleção/Série, HQ, Mangá ou Lore acima, vincule a um Herói ou envie arquivos CBZ/PDF.</div>');
@@ -4747,6 +4784,7 @@
     renderSeriesBiblioteca();
     renderHeroisBiblioteca();
     renderListaBiblioteca();
+    configurarAbasBiblioteca();
 
     // Se o usuário clicou em "✏️ Editar" em algum cartão ou detalhe, abre o item imediatamente no formulário
     if (itemParaEditar) {
@@ -4777,6 +4815,11 @@
       abrirModalAuth('entrar', true);
       toast('⚠️ Crie uma conta ou faça login para acessar o EleoQuadrinho.');
       return;
+    }
+    const localRead = t.closest('[data-device-library] [data-ler]');
+    if (localRead) {
+      const item = REG.get(localRead.dataset.ler);
+      if (item) return Biblioteca.abrir({ ...item, storagePath: '' });
     }
     const addSerie = t.closest('[data-add-serie]');
     if (addSerie) {
