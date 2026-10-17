@@ -16,6 +16,8 @@ function backend(overrides = {}) {
     const path = new URL(url).pathname + new URL(url).search;
     requests.push({ path, options });
     if (overrides[path]) return overrides[path](options);
+    if (path === '/storage/v1/bucket') return Response.json([]);
+    if (path.startsWith('/storage/v1/object/comics/quota/') || (path === '/storage/v1/object/comics' && options.method === 'DELETE')) return Response.json({});
     if (path === '/auth/v1/user') return Response.json({ id: 'reader-id' });
     if (path.startsWith('/rest/v1/profiles?id=')) return Response.json([{ id: 'reader-id', role: 'reader', login: 'reader', nome: 'Leitor' }]);
     if (path.startsWith('/rest/v1/reader_state')) return Response.json([{ data: { salvos: { book: true } }, revision: 2 }]);

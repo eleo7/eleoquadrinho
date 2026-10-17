@@ -1,11 +1,12 @@
 'use strict';
+const { storageStatus, reserveUpload } = require('./storage-quota');
 const { randomUUID } = require('node:crypto');
 const { request, configuration, HttpError } = require('./backend');
 const BUCKET = 'comics';
 const MAX_BYTES = 500 * 1024 * 1024;
 const PART_BYTES = 4 * 1024 * 1024;
 const OBJECT_BYTES = 50 * 1024 * 1024;
-const FILE_PATH = /^[a-f0-9-]{36}\.(pdf|cbz|epub|txt)$/;
+const FILE_PATH = /^[a-f0-9-]{36}(?:-\d{1,3})?\.(pdf|cbz|epub|txt)$/;
 function signedURL(result) {
   const value = result.url || result.signedURL || result.signedUrl;
   if (typeof value !== 'string') throw new HttpError(503, 'Não foi possível preparar o arquivo.');
@@ -15,14 +16,20 @@ function signedURL(result) {
   return url.href;
 }
 async function comicsAction(action, body, profile) {
+  if (action === 'storage-status') {
+    if (profile.role !== 'admin') throw new HttpError(403, 'Somente o administrador pode consultar o espaço da nuvem.');
+    return storageStatus();
+  }
   if (action === 'file-upload') {
     if (profile.role !== 'admin') throw new HttpError(403, 'Somente o administrador pode enviar HQs.');
     if (!['pdf', 'cbz', 'epub', 'txt'].includes(body.format)) throw new HttpError(400, 'Formato não suportado.');
     if (!Number.isSafeInteger(body.size) || body.size < 1 || body.size > MAX_BYTES) throw new HttpError(400, 'Cada HQ deve ter até 500 MB.');
+    const uploadId = randomUUID();
+    await reserveUpload(body.size, uploadId);
     const count = Math.ceil(body.size / PART_BYTES);
     const parts = [];
     for (let i = 0; i < count; i++) {
-      const path = randomUUID() + '.' + body.format;
+      const path = uploadId + '-' + i + '.' + body.format;
       const result = await request(`/storage/v1/object/upload/sign/${BUCKET}/${path}`, { admin: true, method: 'POST', body: {} });
       parts.push({ path, url: signedURL(result), size: count === 1 ? body.size : Math.min(PART_BYTES, body.size - i * PART_BYTES) });
     }

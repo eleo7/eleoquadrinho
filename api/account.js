@@ -109,9 +109,9 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
     const identity = await authenticate(req, res);
-    if (['state', 'catalog', 'profile', 'file-upload', 'file-read'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
+    if (['state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
     const row = await profile(identity.id);
-    if (['file-upload', 'file-read'].includes(action) && req.method === 'POST') return res.status(200).json(await comicsAction(action, body, row));
+    if (['file-upload', 'file-read', 'storage-status'].includes(action) && req.method === 'POST') return res.status(200).json(await comicsAction(action, body, row));
     if (action === 'session' && req.method === 'GET') return res.status(200).json({ user: publicProfile(row) });
     if (action === 'profile' && req.method === 'PATCH') {
       if (Object.keys(body).some(k => !['nome', 'bio', 'avatar'].includes(k))) throw new HttpError(400, 'Campos de perfil inválidos.');

@@ -509,7 +509,7 @@
         <button class="acao-salvar ${salvos[it.id] ? 'on' : ''}" data-salvar="${esc(it.id)}" title="Salvar">🔖</button>
         ${h && h.prog > 0 ? `<div class="barra-prog"><i style="width:${Math.round(h.prog * 100)}%"></i></div>` : ''}
       </div>
-      <h4>${esc(it.titulo)}</h4><p>${esc(descTxt)}</p>
+      <h4>${esc(it.titulo)}</h4><p>${it.localOnly ? 'Somente neste navegador · ' : ''}${esc(descTxt)}</p>
       ${ehMeu ? `<div class="cartao-acoes">
         ${ehSerie ? `<button type="button" data-add-serie="${esc(it.id)}" title="Adicionar nova edição nesta série">➕ +Ed</button>` : ''}
         <button type="button" data-editar="${esc(it.id)}" title="Editar ${esc(it.titulo)}">✏️ Editar</button>
@@ -2716,8 +2716,20 @@
   }
 
   const Biblioteca = {
+    async guardarLocal(o) {
+      o.localOnly = true;
+      try {
+        await BD.salvar(o);
+        Biblioteca.item(o);
+        return true;
+      } catch (error) {
+        toast('Não foi possível guardar no navegador. Confira o espaço livre do dispositivo e faça backup dos seus arquivos.');
+        return false;
+      }
+    },
     async publicar(o) {
       if (!Auth.admin) return false;
+      if (o.localOnly) return Biblioteca.guardarLocal(o);
       const saveButton = $('#extSalvarBtn');
       if (saveButton) saveButton.disabled = true;
       try {
@@ -2753,6 +2765,7 @@
         externas = [snap(item), ...externas.filter(x => x.id !== item.id)];
         Store.set('externas', externas);
         await catalogSync.flush();
+        atualizarEspacoNuvem();
         syncStatus('HQ publicada: "' + o.nome + '" está disponível aos leitores.');
         return true;
       } catch (error) {
@@ -2767,7 +2780,7 @@
       if (button) button.disabled = true;
       try {
         const files = await BD.todos();
-        const pending = files.filter(o => !externas.some(it => it.id === o.id && it.storagePath));
+        const pending = files.filter(o => !o.localOnly && !externas.some(it => it.id === o.id && it.storagePath));
         if (!pending.length) return toast('Não há arquivos locais pendentes neste navegador.');
         let count = 0;
         for (const o of pending) { if (await Biblioteca.publicar(o)) count++; else break; }
@@ -2777,7 +2790,8 @@
       finally { if (button) button.disabled = false; }
     },
     async importar(arquivos, opcoes = {}) {
-      if (!Auth.admin) return toast('Somente o administrador pode importar conteúdo.');
+      if (!Auth.admin && !opcoes.local) return toast('Somente o administrador pode publicar conteúdo.');
+      const guardar = o => opcoes.local ? Biblioteca.guardarLocal(o) : Biblioteca.publicar(o);
       arquivos = [...arquivos]; if (!arquivos.length) return;
       const imgs = arquivos.filter(f => IMG_RE.test(f.name)).sort((a, b) => ordenarNat(a.name, b.name));
       const outros = arquivos.filter(f => !IMG_RE.test(f.name)).sort((a, b) => ordenarNat(a.name, b.name));
@@ -2818,7 +2832,7 @@
           capa: capaImg,
           adicionado: Date.now()
         };
-        if (!await Biblioteca.publicar(obj)) return;
+        if (!await guardar(obj)) return;
         n++;
         if (proxEdNum != null) proxEdNum++;
       }
@@ -2851,8 +2865,8 @@
             if (!pgs.length) { toast(`${f.name}: nenhuma imagem encontrada`); continue; }
             const capaCbz = opcoes.capa || await miniatura(await pgs[0].async('blob'));
             const obj = { ...base, formato: 'cbz', paginas: pgs.length, capa: capaCbz };
-            if (!await Biblioteca.publicar(obj)) continue;
-            if (serieObj && !serieObj.capa && capaCbz) {
+            if (!await guardar(obj)) continue;
+            if (!opcoes.local && serieObj && !serieObj.capa && capaCbz) {
               serieObj.capa = capaCbz; serieObj.banner = capaCbz; reg(serieObj);
               series = [snap(serieObj), ...series.filter(s => s.id !== serieObj.id)]; Store.set('series', series);
             }
@@ -2862,18 +2876,18 @@
             // Usa a capa enviada pelo usuário se houver; caso contrário, usa automaticamente a 1ª página do PDF!
             const capaPdf = opcoes.capa || metaPdf.capa || serieObj?.capa || hItem?.capa || '';
             const obj = { ...base, formato: 'pdf', paginas: metaPdf.paginas || 0, capa: capaPdf };
-            if (!await Biblioteca.publicar(obj)) continue;
-            if (serieObj && !serieObj.capa && capaPdf) {
+            if (!await guardar(obj)) continue;
+            if (!opcoes.local && serieObj && !serieObj.capa && capaPdf) {
               serieObj.capa = capaPdf; serieObj.banner = capaPdf; reg(serieObj);
               series = [snap(serieObj), ...series.filter(s => s.id !== serieObj.id)]; Store.set('series', series);
             }
           } else if (ext === 'epub') {
             const e = await lerEPUB(f);
             const obj = { ...base, nome: opcoes.nome || e.titulo || base.nome, autor: e.autor, formato: 'epub', paginas: e.secoes.length, capa: opcoes.capa || '' };
-            if (!await Biblioteca.publicar(obj)) continue;
+            if (!await guardar(obj)) continue;
           } else if (['txt', 'md'].includes(ext)) {
             const obj = { ...base, formato: 'txt', capa: opcoes.capa || '' };
-            if (!await Biblioteca.publicar(obj)) continue;
+            if (!await guardar(obj)) continue;
           } else if (ext === 'cbr' || ext === 'rar') {
             toast('Arquivos CBR/RAR não são suportados no navegador — converta para CBZ ou PDF.'); continue;
           } else {
@@ -2881,7 +2895,7 @@
           }
           n++;
           if (proxEdNum != null) proxEdNum++;
-        } catch (e) { console.error(e); toast(`Erro ao importar ${f.name}`); }
+        } catch (e) { toast(`Não foi possível importar ${f.name}. Confira o formato e o espaço livre do navegador.`); }
       }
       if (n) {
         renderMinhasHQs();
@@ -2907,6 +2921,7 @@
         capa: o.capa,
         banner: o.capa,
         formato: o.formato,
+        localOnly: !!o.localOnly,
         storagePath: o.storagePath || '',
         ...(o.storageParts ? { storageParts: o.storageParts, storageSize: o.storageSize } : {}),
         paginasCount: o.paginas || 0
@@ -3252,11 +3267,47 @@
     document.body.style.overflow = '';
   }
 
+  function painelLocal() {
+    return `<div class="painel" style="margin-bottom:20px;padding:16px"><h3>Minha biblioteca neste navegador</h3>
+      <p>Arquivos pessoais, disponíveis somente nesta conta e neste navegador. Não são enviados à nuvem nem compartilhados. O espaço depende do dispositivo; limpar os dados do navegador pode apagar as HQs. Mantenha os arquivos originais como backup.</p>
+      <label class="btn btn-sec">Guardar HQs apenas neste navegador<input id="localHQInput" type="file" accept=".pdf,.cbz,.zip,.epub,.txt,.md,image/*" multiple hidden></label>
+      <p id="localSpace" role="status"></p></div>`;
+  }
+  function configurarLocal() {
+    const input = $('#localHQInput');
+    if (!input) return;
+    input.onchange = async () => {
+      input.disabled = true;
+      try {
+        await navigator.storage?.persist?.().catch(() => false);
+        await Biblioteca.importar(input.files, { local: true, heroiId: '', heroiNome: '', serieId: '', serieNome: '', colecao: 'arquivo' });
+      } finally { input.disabled = false; input.value = ''; }
+    };
+    navigator.storage?.estimate?.().then(({ usage, quota }) => {
+      const el = $('#localSpace');
+      if (el) el.textContent = `Uso aproximado deste site no navegador: ${Math.ceil((usage || 0) / 1048576)} MB de ${Math.floor((quota || 0) / 1048576)} MB disponíveis para o site.`;
+    }).catch(() => {});
+  }
+  async function atualizarEspacoNuvem() {
+    const el = $('#cloudSpace');
+    if (!el || !Auth.admin) return;
+    try {
+      const s = await EQAccount.api('storage-status', 'POST', {}, Auth.usuario.id);
+      el.textContent = `Nuvem: ${(s.used / 1000000).toFixed(1)} MB usados de ${(s.limit / 1000000).toFixed(0)} MB. ` +
+        (s.reserved ? `${(s.reserved / 1000000).toFixed(1)} MB reservados para envios em andamento. ` : '') +
+        (s.blocked ? 'Novos envios bloqueados. Use a biblioteca neste navegador.' : s.warning ? 'Atenção: espaço acabando. Os envios param antes de ultrapassar 90% da cota.' : 'Aviso em 80%; bloqueio de novos envios em 90%.');
+      const button = $('#btnPublicarLocais');
+      if (button) button.disabled = s.blocked;
+    } catch { el.textContent = 'Não foi possível verificar o espaço da nuvem. Você pode guardar HQs apenas neste navegador.'; }
+  }
+
   async function renderBiblioteca() {
     const el = $('#aba-biblioteca');
     if (!Auth.admin) {
-      el.innerHTML = '<div class="secao-cab"><div><h2>Biblioteca</h2><p>Obras publicadas pelo administrador. Use Salvos para organizar suas leituras.</p></div></div>' +
-        `<div class="grade">${[...externas, ...drive, ...series].map(it => cartao(REG.get(it.id) || reg(it))).join('')}</div>`;
+      const pessoais = (await BD.todos()).filter(o => !externas.some(x => x.id === o.id)).map(o => Biblioteca.item(o));
+      el.innerHTML = painelLocal() + '<div class="secao-cab"><div><h2>Biblioteca</h2><p>Obras publicadas pelo administrador. Use Salvos para organizar suas leituras.</p></div></div>' +
+        `<div class="grade">${[...pessoais, ...externas, ...drive, ...series].map(it => cartao(REG.get(it.id) || reg(it))).join('')}</div>`;
+      configurarLocal();
       return;
     }
     // Garante que campeões do LoL já estejam disponíveis na lista de heróis
@@ -3273,7 +3324,8 @@
       <option value="folclore">Folclore Brasileiro</option>
       <option value="originais">Independentes / Outros</option>`;
 
-    el.innerHTML = `
+    el.innerHTML = painelLocal() + `
+      <p id="cloudSpace" role="status">Conferindo espaço da nuvem…</p>
       <div class="secao-cab"><div><p>Arquivos enviados aqui ficam disponíveis a todos os leitores após a publicação (até 500 MB por HQ).</p>
         <button class="btn btn-pri" id="btnPublicarLocais">Publicar HQs já salvas neste navegador</button>
       </div></div>
@@ -4602,6 +4654,8 @@
         : '<div class="vazio"><div class="em">📂</div>Sua biblioteca pessoal está vazia. Adicione uma Coleção/Série, HQ, Mangá ou Lore acima, vincule a um Herói ou envie arquivos CBZ/PDF.</div>');
     }
 
+    configurarLocal();
+    atualizarEspacoNuvem();
     $('#btnPublicarLocais').onclick = e => Biblioteca.publicarPendentes(e.currentTarget);
     renderSeriesBiblioteca();
     renderHeroisBiblioteca();

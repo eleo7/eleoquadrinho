@@ -37,6 +37,7 @@ def connect(context, role='reader'):
                     doc.update(data=body['data'], revision=doc['revision'] + 1)
                     result = {'revision': doc['revision']}
             else: result = doc
+        elif action == 'storage-status': result = {'used': 810000000, 'reserved': 0, 'limit': 1000000000, 'blocked': False, 'warning': True}
         elif action == 'file-upload':
             assert role == 'admin'
             count = 3
@@ -145,6 +146,24 @@ with sync_playwright() as p:
     reader.locator('#aba-biblioteca [data-ler="' + shared['id'] + '"]').click()
     reader.wait_for_function("document.querySelector('#ltTexto').textContent.includes('Conteudo compartilhado com o leitor.')")
     print('Cloud file: admin upload -> fresh reader with no IndexedDB copy: PASS')
+    reader.locator('#leitorTexto [data-fechar-leitor]').click()
+    before_catalog = json.dumps(catalog)
+    before_uploads = len(uploaded)
+    reader.locator('nav [data-ir=biblioteca]').click()
+    reader.locator('#localHQInput').set_input_files({'name': 'pessoal.txt', 'mimeType': 'text/plain', 'buffer': b'Leitura somente neste navegador.'})
+    reader.wait_for_function("document.querySelector('#aba-biblioteca').textContent.includes('pessoal')")
+    assert json.dumps(catalog) == before_catalog
+    assert len(uploaded) == before_uploads
+    local_id = reader.evaluate("""()=>new Promise(resolve=>{const r=indexedDB.open('eleoquadrinho:user-reader');r.onsuccess=()=>{const q=r.result.transaction('arquivos').objectStore('arquivos').getAll();q.onsuccess=()=>resolve(q.result.find(x=>x.nome==='pessoal').id)}})""")
+    reader.locator('#aba-biblioteca [data-ler="' + local_id + '"]').click()
+    reader.wait_for_function("document.querySelector('#ltTexto').textContent.includes('Leitura somente neste navegador.')")
+    reader.reload(wait_until='domcontentloaded')
+    reader.locator('nav [data-ir=biblioteca]').click()
+    reader.wait_for_function("document.querySelector('#aba-biblioteca').textContent.includes('pessoal')")
+    admin_page.locator('nav [data-ir=biblioteca]').click()
+    assert admin_page.locator('#aba-biblioteca [data-ler="' + local_id + '"]').count() == 0
+    admin_page.wait_for_function("document.querySelector('#cloudSpace').textContent.includes('espaço acabando')")
+    print('Reader local import, reading, persistence, account isolation and cloud warning: PASS')
     # Do not use the backend-provisioned admin credential in tests.
     assert not errors, errors
     print('Browser smoke: signup, invalid password, login, reader permissions, favorites across devices, profile update, logout, admin controls: PASS')
