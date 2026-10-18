@@ -21,14 +21,14 @@ async function uploadCover(body, profile) {
   const result = await request('/storage/v1/object/upload/sign/comics/' + path, { admin: true, method: 'POST', body: {} });
   return { uploadURL: url(result), reference: PREFIX + path };
 }
-async function readCover(path) {
+async function readCover(path, profile = {}) {
   if (typeof path !== 'string' || !/^[a-f0-9-]{36}-0\.(jpg|png|webp|gif|avif)$/.test(path)) throw new HttpError(404, 'Capa não encontrada.');
   const rows = await request('/rest/v1/catalog?id=eq.1&select=data', { admin: true });
   const reference = PREFIX + path;
   function contains(value) {
     return value === reference || (value && typeof value === 'object' && Object.values(value).some(contains));
   }
-  if (!contains(rows[0]?.data)) throw new HttpError(404, 'Capa não publicada.');
+  if (!contains(require('../js/content-access').filterCatalog(rows[0]?.data, profile.access, profile.role))) throw new HttpError(404, 'Capa não publicada.');
   return url(await request('/storage/v1/object/sign/comics/' + path, { admin: true, method: 'POST', body: { expiresIn: 3600 } }));
 }
 module.exports = { uploadCover, readCover };

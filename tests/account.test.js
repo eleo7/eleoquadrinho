@@ -215,3 +215,48 @@ test('logout clears credentials when user verification itself is unavailable', a
   assert.equal(result.status, 200);
   assert.ok(result.headers['Set-Cookie'].every(c => c.includes('Max-Age=0')));
 });
+
+test('reader cannot list users or change content permissions', async () => {
+  backend();
+  for (const method of ['GET','PATCH']) assert.equal((await call('users',method)).status,403);
+  assert.equal((await call('profile','PATCH',{nome:'Reader',access:{mode:'standard'}})).status,400);
+  assert.ok(!requests.some(r=>r.path.startsWith('/auth/v1/admin/')));
+});
+test('restricted catalog and private files enforce trusted app metadata, not user metadata', async () => {
+  const item={id:'book',colecao:'dc',formatoObra:'HQ',storagePath:'00000000-0000-4000-8000-000000000001.pdf'};
+  backend({
+    '/auth/v1/user':()=>Response.json({id:'reader-id',app_metadata:{content_access:{mode:'alternative',universes:['marvel'],categories:['hq']}},user_metadata:{content_access:{mode:'standard'}}}),
+    '/rest/v1/catalog?id=eq.1&select=data,revision':()=>Response.json([{data:{externas:[item]},revision:1}]),
+    '/rest/v1/catalog?id=eq.1&select=data':()=>Response.json([{data:{externas:[item]}}])
+  });
+  const result=await call('catalog');assert.equal(result.status,200);assert.deepEqual(result.body.data.externas,[]);
+  assert.equal((await call('file-read','POST',{id:'book'})).status,403);
+  assert.ok(!requests.some(r=>r.path.startsWith('/storage/v1/object/sign')));
+});
+test('initial profile excludes manga and lore but permits HQs in every universe', async () => {
+  backend({
+    '/auth/v1/user':()=>Response.json({id:'reader-id',app_metadata:{content_access:{mode:'initial'}}}),
+    '/rest/v1/catalog?id=eq.1&select=data,revision':()=>Response.json([{data:{externas:[{id:'hq',colecao:'dc',formatoObra:'HQ'},{id:'manga',formatoObra:'Mangá'},{id:'lore',formatoObra:'Lore'},{id:'story',tipo:'conto'}]},revision:1}])
+  });
+  assert.deepEqual((await call('catalog')).body.data.externas.map(x=>x.id),['hq']);
+});
+test('admin user list returns only public profile, email and normalized access', async () => {
+  const id='00000000-0000-4000-8000-000000000001';
+  backend({
+    '/rest/v1/profiles?id=eq.reader-id&select=*':()=>Response.json([{id:'reader-id',role:'admin'}]),
+    '/auth/v1/admin/users?page=1&per_page=50':()=>Response.json({users:[{id,email:'test@example.test',encrypted_password:'NEVER',app_metadata:{private_secret:'NEVER',content_access:{mode:'initial'}}}]}),
+    [`/rest/v1/profiles?id=in.(${id})&select=id,login,nome,bio,avatar,role,created_at`]:()=>Response.json([{id,login:'test',nome:'Test',role:'reader'}])
+  });
+  const r=await call('users');assert.equal(r.status,200);assert.equal(r.body.users[0].email,'test@example.test');assert.equal(r.body.users[0].access.mode,'initial');assert.ok(!JSON.stringify(r.body).includes('NEVER'));
+});
+test('admin can edit content profile without changing role, password or auth identity', async () => {
+  const id='00000000-0000-4000-8000-000000000001';let written;
+  backend({
+    '/rest/v1/profiles?id=eq.reader-id&select=*':()=>Response.json([{id:'reader-id',role:'admin'}]),
+    [`/rest/v1/profiles?id=eq.${id}&select=*`]:()=>Response.json([{id,role:'reader'}]),
+    [`/auth/v1/admin/users/${id}`]:options=>{if(options.method==='PUT')written=JSON.parse(options.body);return Response.json({id,email:'test@example.test',app_metadata:{provider:'email'}});},
+    [`/rest/v1/profiles?id=eq.${id}`]:options=>Response.json([{id,role:'reader',...JSON.parse(options.body)}])
+  });
+  const r=await call('users','PATCH',{id,nome:'New name',bio:'New bio',access:{mode:'alternative',universes:['marvel','dc'],categories:['hq']}});
+  assert.equal(r.status,200);assert.deepEqual(Object.keys(written),['app_metadata']);assert.equal(written.app_metadata.provider,'email');assert.equal(r.body.user.role,'reader');
+});

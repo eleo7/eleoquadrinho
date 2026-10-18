@@ -463,7 +463,7 @@
   function capaHTML(it, largo = false) {
     let src = largo ? (it.banner || it.capa) : it.capa;
     if (!src && it.tipo === 'serie-pasta') {
-      const eds = edicoesDaSerie(it);
+      const eds = edicoesDaSerie(it).filter(ed => conteudoPermitido(ed));
       src = eds[0]?.capa || '';
     }
     if (src) return `<img src="${esc(src)}" alt="${esc(it.titulo)}" loading="lazy" data-id="${esc(it.id)}" data-largo="${largo ? 1 : 0}" onerror="EQ.falhaCapa(this)">`;
@@ -500,8 +500,41 @@
     }
     return SELOS[it.tipo] || ['', ''];
   }
+  function conteudoPermitido(it, preferences = true) {
+    return EQContentAccess.allowed(it, Auth.usuario?.access, Auth.usuario?.role) &&
+      (!preferences || !(prefs.hiddenUniverses || []).includes(EQContentAccess.universe(it)));
+  }
+  function universoVisivel(id) {
+    const policy = EQContentAccess.normalize(Auth.usuario?.access);
+    return !(prefs.hiddenUniverses || []).includes(id) && (Auth.admin || policy.mode !== 'alternative' || policy.universes.includes(id));
+  }
+  function inicioFiltrado() { return EQContentAccess.normalize(Auth.usuario?.access).mode !== 'standard' || prefs.hiddenUniverses?.length; }
+  async function atualizarPermissoes() {
+    if (!Auth.usuario) return;
+    const id = Auth.usuario.id;
+    const {user} = await EQAccount.api('session');
+    if (!user || user.id !== id || Auth.usuario?.id !== id) throw new Error('A conta mudou. Recarregue a página.');
+    const changed = JSON.stringify(user.access) !== JSON.stringify(Auth.usuario.access);
+    accountUser = user;
+    if (changed) {
+      if (user.role !== 'admin') {
+        const snapshot = await EQAccount.api('catalog', 'GET', undefined, id);
+        if (Auth.usuario?.id !== id) throw new Error('A conta mudou.');
+        externas = snapshot.data.externas || []; drive = snapshot.data.drive || [];
+        series = snapshot.data.series || []; herois = snapshot.data.herois || [];
+        [...externas, ...drive, ...series, ...herois].forEach(reg);
+      }
+      inicioPronto = false;
+      Ex.uni = Ex.heroi = Ex.serie = null;
+      fecharCamada();
+      if ($('#leitorTexto').classList.contains('aberto')) $('#leitorTexto [data-fechar-leitor]')?.click();
+      if ($('#leitorHQ').classList.contains('aberto')) $('#leitorHQ [data-fechar-leitor]')?.click();
+    }
+    return changed;
+  }
+  window.addEventListener('focus', () => { atualizarPermissoes().then(changed => { if (changed) rota(); }).catch(() => {}); });
   function cartao(it, { largo = false } = {}) {
-    if (!it) return '';
+    if (!it || !conteudoPermitido(it)) return '';
     const h = historico.find(x => x.id === it.id);
     const [selo, cls] = seloItem(it);
     const ehHeroi = it.tipo === 'heroi';
@@ -549,6 +582,7 @@
     return `${loc ? loc + ' contos · ' : ''}${v} verbetes`.replace(/ · 0 verbetes$/, '');
   }
   function cartaoColecao(c) {
+    if (!universoVisivel(EQContentAccess.universe({colecao:c.id}))) return '';
     const it = { id: 'col:' + c.id, titulo: c.nome, colecao: c.id, capa: c.capa };
     if (!c.capa) {
       if (c.id === 'hqs-lol') it.capa = HQS_RIOT_SERIES[0].capa;
@@ -585,6 +619,14 @@
   /* ---------------- Início ---------------- */
   let inicioPronto = false;
   function renderInicio() {
+    if (inicioFiltrado()) {
+      clearInterval(destaqueTimer);
+      const items = [...REG.values()].filter(it => conteudoPermitido(it) && !['heroi','wiki','regiao'].includes(it.tipo));
+      $('#aba-inicio').innerHTML = `<div id="secExplorar"></div><section class="painel"><h2>Sua estante</h2><p>Conteúdo disponível para seu perfil e seus universos favoritos. Ajuste o que deseja ver no Perfil.</p><div class="grade">${items.map(it => cartao(it)).join('')}</div>${items.length ? '' : '<p>Nenhuma obra disponível nesta seleção.</p>'}</section>`;
+      inicioPronto = false;
+      renderExplorador();
+      return;
+    }
     if (inicioPronto) { renderContinuar(); renderMinhasHQs(); return; }
     inicioPronto = true;
     const el = $('#aba-inicio');
@@ -620,17 +662,21 @@
 
     Dados.cronicas().then(lista => {
       Dados._cronicasN = lista.length;
+      if (!$('#secCronicas')) return;
       $('#secCronicas').innerHTML = secao('Crônicas e Contos de Runeterra', `Riot Games Universe · ${lista.length} contos e novelas completas em português`, trilho(lista.slice(0, 32).map(i => cartao(i)).join('')), 'cronicas-lol');
       $$('[data-colecao="cronicas-lol"] p').forEach(p => p.textContent = `${lista.length} contos oficiais`);
     }).catch(() => {
+      if (!$('#secCronicas')) return;
       $('#secCronicas').innerHTML = secao('Crônicas e Contos de Runeterra', 'Riot Games Universe', '<div class="erro">Não foi possível carregar o catálogo de contos no momento.</div>');
     });
 
     Dados.lol().then(lista => {
       Dados._lolN = lista.length;
+      if (!$('#secLol')) return;
       $('#secLol').innerHTML = secao('Biografias & Lore dos Campeões', `Riot Games Universe · ${lista.length} campeões com biografias completas e contos`, trilho(embaralhar(lista).slice(0, 30).map(i => cartao(i)).join('')), 'lol');
       $$('[data-colecao="lol"] p').forEach(p => p.textContent = `${lista.length} campeões (Lore + Contos)`);
     }).catch(() => {
+      if (!$('#secLol')) return;
       $('#secLol').innerHTML = secao('Biografias & Lore dos Campeões', 'Data Dragon', '<div class="erro">Não foi possível conectar ao Data Dragon.</div>');
     });
   }
@@ -671,13 +717,7 @@
   })();
   const Ex = { uni: null, heroi: null, serie: null, filtro: 'tudo', filtroStatus: 'todos', busca: '', chip: 'todos', mostrar: 48, _cronOk: false };
 
-  function categoriaObra(o) {
-    const f = norm(o.formatoObra || '');
-    if (f.includes('mang') || f.includes('manhw') || f.includes('webtoon')) return 'manga';
-    if (f.includes('lore') || ['lol', 'wiki', 'regiao', 'heroi', 'lor'].includes(o.tipo)) return 'lore';
-    if (f.includes('conto') || f.includes('hist') || f.includes('outro') || ['riot-conto', 'conto', 'interativa'].includes(o.tipo)) return 'historia';
-    return 'hq';
-  }
+  function categoriaObra(o) { return EQContentAccess.category(o); }
   const CAT_INFO = { hq: ['🗯️', 'HQ'], manga: ['🎌', 'Mangá'], lore: ['📜', 'Lore'], historia: ['📖', 'História'] };
 
   function obrasDoUsuario() {
@@ -750,6 +790,7 @@
   }
 
   function cartaoUniverso(u) {
+    if (!universoVisivel(u.id.replace(/^u-/, ''))) return '';
     const st = statsUniverso(u);
     const img = u.img();
     return `<button class="ex-uni" data-ex-uni="${u.id}" style="--c1:${u.cor[0]};--c2:${u.cor[1]}">
@@ -770,6 +811,7 @@
   }
 
   function cartaoPersonagem(it, cv) {
+    if (!conteudoPermitido(it)) return '';
     const meu = it.tipo === 'heroi';
     const cats = [['🗯️', cv.hqs], ['🎌', cv.mangas], ['📜', cv.lores], ['📖', cv.historias], ['📁', cv.seriesCount]].filter(c => c[1] > 0);
     return `<div class="ex-pers ${cv.total ? 'com-obras' : ''} ${meu ? 'meu' : ''}" data-ex-heroi="${esc(it.id)}" tabindex="0">
@@ -786,6 +828,7 @@
   }
 
   function pastaSerie(s) {
+    if (!conteudoPermitido(s)) return '';
     const eds = edicoesDaSerie(s);
     const capas = [s.capa, ...eds.map(e => e.capa)].filter(Boolean).slice(0, 3);
     const lidos = eds.filter(e => (historico.find(h => h.id === e.id)?.prog || 0) >= 0.99).length;
@@ -803,6 +846,7 @@
   }
 
   function cartaoVolume(ed, i) {
+    if (!conteudoPermitido(ed)) return '';
     const h = historico.find(x => x.id === ed.id);
     const prog = Math.round((h?.prog || 0) * 100);
     const cat = CAT_INFO[categoriaObra(ed)];
@@ -825,7 +869,7 @@
 
   async function renderExplorador() {
     const el = $('#secExplorar'); if (!el) return;
-    const u = UNIVERSOS.find(x => x.id === Ex.uni);
+    const u = UNIVERSOS.find(x => x.id === Ex.uni && universoVisivel(x.id.replace(/^u-/, '')));
     let corpo = '';
 
     if (!u) {
@@ -836,8 +880,8 @@
         <div class="ex-unis">${UNIVERSOS.map(cartaoUniverso).join('')}</div>`;
     } else if (Ex.serie) {
       const s = REG.get(Ex.serie);
-      if (!s) { Ex.serie = null; return renderExplorador(); }
-      const todasEds = edicoesDaSerie(s);
+      if (!s || !conteudoPermitido(s)) { Ex.serie = null; return renderExplorador(); }
+      const todasEds = edicoesDaSerie(s).filter(it => conteudoPermitido(it));
       const capa = s.capa || todasEds[0]?.capa || '';
       const lidos = todasEds.filter(e => (historico.find(h => h.id === e.id)?.prog || 0) >= 0.99).length;
       const emAnd = todasEds.filter(e => { const p = historico.find(h => h.id === e.id)?.prog || 0; return p > 0 && p < 0.99; }).length;
@@ -886,12 +930,13 @@
           : `<div class="vazio">Esta subpasta ainda não tem volumes.<br><br><button class="btn btn-pri" data-add-serie="${esc(s.id)}">➕ Adicionar o Volume #1</button></div>`}`;
     } else if (Ex.heroi) {
       const h = REG.get(Ex.heroi);
-      if (!h) { Ex.heroi = null; return renderExplorador(); }
+      if (!h || !conteudoPermitido(h)) { Ex.heroi = null; return renderExplorador(); }
       const cv = contagemVinculosHeroi(h);
       const idsS = new Set(cv.seriesH.map(s => s.id));
       let obras = cv.obras.filter(o => !(o.serieId && idsS.has(o.serieId)));
       if (['lol', 'wiki'].includes(h.tipo)) obras = [h, ...obras];
       const porCat = { hq: [], manga: [], lore: [], historia: [] };
+      obras = obras.filter(o => conteudoPermitido(o));
       obras.forEach(o => porCat[categoriaObra(o)].push(o));
       const abas = [
         ['tudo', '✨ Tudo', obras.length + cv.seriesH.length],
@@ -933,7 +978,7 @@
       el.innerHTML = `<div class="ex-caixa">${migalhas()}<div class="ex-palco">${carregando(`Abrindo ${esc(u.nome)}...`)}</div></div>`;
       const pers = await personagensDoUniverso(u);
       if (Ex.uni !== u.id || Ex.heroi || Ex.serie) return;
-      const lista = pers.map(it => ({ it, cv: contagemVinculosHeroi(it) }));
+      const lista = pers.filter(it => conteudoPermitido(it)).map(it => ({ it, cv: contagemVinculosHeroi(it) }));
       lista.sort((a, b) => ((b.it.tipo === 'heroi') * 2 + (b.cv.total > 0)) - ((a.it.tipo === 'heroi') * 2 + (a.cv.total > 0)) || a.it.titulo.localeCompare(b.it.titulo));
       const q = norm(Ex.busca);
       const filtrada = lista.filter(({ it, cv }) =>
@@ -941,8 +986,8 @@
         (!q || norm(`${it.titulo} ${it.sub || ''}`).includes(q)));
       const nCom = lista.filter(x => x.cv.total > 0).length;
       const nMeus = lista.filter(x => x.it.tipo === 'heroi').length;
-      const soltasS = seriesSoltasDoUniverso(u);
-      const soltasO = obrasSoltasDoUniverso(u);
+      const soltasS = seriesSoltasDoUniverso(u).filter(it => conteudoPermitido(it));
+      const soltasO = obrasSoltasDoUniverso(u).filter(it => conteudoPermitido(it));
       const img = u.img();
       corpo = `<div class="ex-hero ex-hero-uni" style="--c1:${u.cor[0]};--c2:${u.cor[1]}">
           ${img ? `<div class="ex-hero-bg" style="background-image:url('${esc(img)}')"></div>` : ''}
@@ -1213,6 +1258,7 @@
   }
   function itemContinuar(h) {
     const it = REG.get(h.id) || reg(h.item || h);
+    if (!conteudoPermitido(it)) return '';
     return `<div class="cont-item" data-ler="${esc(h.id)}">
       <div class="mini">${capaHTML(it)}</div>
       <div class="info"><b>${esc(it.titulo)}</b><small>${esc(h.rotulo || '')}</small>
@@ -1225,6 +1271,12 @@
 
   /* ---------------- Coleção ---------------- */
   async function renderColecao(id) {
+    if (inicioFiltrado()) {
+      const items = [...REG.values()].filter(it => it.colecao === id && conteudoPermitido(it));
+      $('#aba-colecao').innerHTML = `<h2>${esc(col(id)?.nome || 'Coleção')}</h2><div class="grade">${items.map(it => cartao(it)).join('')}</div>`;
+      return;
+    }
+    if (!universoVisivel(EQContentAccess.universe({colecao:id}))) { $('#aba-colecao').innerHTML = '<p>Universo indisponível ou oculto nas preferências.</p>'; return; }
     const c = col(id); const el = $('#aba-colecao');
     if (!c) { el.innerHTML = '<div class="vazio">Coleção não encontrada.</div>'; return; }
     const fundoImg = c.capa || (id === 'hqs-lol' ? HQS_RIOT_SERIES[0].capa : id === 'lol' ? Fontes.lolImg.splash('Ahri') : id === 'cronicas-lol' ? Fontes.lolImg.splash('Thresh') : id === 'runeterra' ? Fontes.lolImg.splash('Azir') : '');
@@ -1406,6 +1458,8 @@
     let it = REG.get(id);
     if (!it) { const s = salvos[id] || historico.find(h => h.id === id)?.item; if (s) it = reg(s); }
     if (!it) return;
+    try { await atualizarPermissoes(); } catch (error) { return toast(error.message); }
+    if (!conteudoPermitido(it)) return toast('Este conteúdo não está disponível no seu perfil ou está oculto nas preferências.');
     const box = $('#detalheConteudo');
     abrirCamada();
     box.innerHTML = topoDetalhe(it, { fundo: it.banner, botoes: btnLer(id) }) + `<div class="det-corpo">${carregando()}</div>`;
@@ -1494,7 +1548,7 @@
             : `<div class="vazio">Nenhuma HQ ou história vinculada ainda.<br><br><button class="btn btn-pri" data-add-heroi="${esc(it.id)}">➕ Adicionar 1ª HQ / Coleção / Lore de ${esc(it.titulo)}</button></div>`}
         </div>`;
       } else if (it.tipo === 'serie-pasta') {
-        const eds = edicoesDaSerie(it);
+        const eds = edicoesDaSerie(it).filter(ed => conteudoPermitido(ed));
         const heroiRef = it.heroiId ? REG.get(it.heroiId) : (it.heroiNome ? [...REG.values()].find(x => ['heroi', 'lol', 'wiki'].includes(x.tipo) && norm(x.titulo) === norm(it.heroiNome)) : null);
         const cvHeroi = heroiRef ? contagemVinculosHeroi(heroiRef) : null;
         box.innerHTML = topoDetalhe(it, {
@@ -1832,6 +1886,8 @@
       toast('Obra não encontrada para leitura.');
       return;
     }
+    try { await atualizarPermissoes(); } catch (error) { return toast(error.message); }
+    if (!conteudoPermitido(it)) return toast('Este conteúdo não está disponível no seu perfil ou está oculto nas preferências.');
     fecharCamada();
     try {
       switch (it.tipo) {
@@ -2015,7 +2071,7 @@
           }
         }
         case 'serie-pasta': {
-          const eds = edicoesDaSerie(it);
+          const eds = edicoesDaSerie(it).filter(ed => conteudoPermitido(ed));
           if (!eds.length) {
             toast('Esta subpasta ainda não possui edições. Adicione a Edição #1!');
             return abrirDetalhe(it.id);
@@ -2024,7 +2080,7 @@
           return abrirLeitura(alvoEd.id);
         }
         case 'ext-hq': {
-          const edsSerie = it.serieId ? edicoesDaSerie(it.serieId) : [];
+          const edsSerie = it.serieId ? edicoesDaSerie(it.serieId).filter(ed => conteudoPermitido(ed)) : [];
           const idxSerie = edsSerie.findIndex(e => e.id === it.id);
           const serieRef = it.serieId ? (REG.get(it.serieId) || series.find(s => s.id === it.serieId)) : null;
           if (it.paginas?.length) {
@@ -3005,7 +3061,7 @@
         if (!o) return toast('O administrador ainda precisa publicar o arquivo desta HQ.');
       }
       toast('Abrindo ' + o.nome + '...');
-      const edsSerie = it.serieId ? edicoesDaSerie(it.serieId) : [];
+      const edsSerie = it.serieId ? edicoesDaSerie(it.serieId).filter(ed => conteudoPermitido(ed)) : [];
       const idxSerie = edsSerie.findIndex(e => e.id === it.id);
       const serieRef = it.serieId ? (REG.get(it.serieId) || series.find(s => s.id === it.serieId)) : null;
       const opcoesLeitor = {
@@ -3087,9 +3143,10 @@
     const rl = $('#resLocal'), rw = $('#resWiki'), ri = $('#resIA');
     if (q.length < 2) { rl.innerHTML = rw.innerHTML = ri.innerHTML = ''; return; }
     await Promise.all([Dados.lol().catch(() => { }), Dados.cronicas().catch(() => { })]);
-    const loc = [...REG.values()].filter(i => ['serie-pasta', 'riot-serie', 'riot-hq', 'riot-conto', 'ia', 'ext-hq', 'heroi', 'lol', 'conto', 'interativa', 'hq', 'wiki', 'regiao', 'drive', 'local'].includes(i.tipo) && norm(`${i.titulo} ${i.sub} ${i.resumo || ''} ${i.heroiNome || ''} ${i.serieNome || ''} ${(i.tags || []).join(' ')}`).includes(q)).slice(0, 48);
+    const loc = [...REG.values()].filter(i => conteudoPermitido(i)).filter(i => ['serie-pasta', 'riot-serie', 'riot-hq', 'riot-conto', 'ia', 'ext-hq', 'heroi', 'lol', 'conto', 'interativa', 'hq', 'wiki', 'regiao', 'drive', 'local'].includes(i.tipo) && norm(`${i.titulo} ${i.sub} ${i.resumo || ''} ${i.heroiNome || ''} ${i.serieNome || ''} ${(i.tags || []).join(' ')}`).includes(q)).slice(0, 48);
     rl.innerHTML = secao('Coleções, HQs, Crônicas, Heróis e Lore na Estante', `${loc.length} resultado(s)`, loc.length ? `<div class="grade">${loc.map(i => cartao(i)).join('')}</div>` : '<div class="vazio">Nada na estante com esse nome — veja mais resultados abaixo.</div>');
     aplicarMiniaturas(loc);
+    if (inicioFiltrado()) { rw.innerHTML = ri.innerHTML = ''; return; }
     rw.innerHTML = secao('Enciclopédia (Wikipédia em português)', 'Histórias, sagas e personagens', carregando('Pesquisando...'));
     ri.innerHTML = secao('Acervo Digital de Quadrinhos (Internet Archive)', 'HQs completas', `<button class="btn btn-sec" id="buscaIA">📚 Procurar HQs de "${esc(termo)}" no acervo completo</button>`);
     $('#buscaIA').onclick = () => { location.hash = 'colecao/arquivo'; setTimeout(() => colecaoArquivo($('#colCorpo'), `(${termo}) AND mediatype:texts`), 80); };
@@ -3105,7 +3162,7 @@
   function renderHistorico() {
     const el = $('#aba-historico');
     el.innerHTML = `<div class="secao-cab"><div><small>Tudo o que você abriu</small><h3 style="font-size:28px">Histórico de leitura</h3></div>${historico.length ? '<button class="btn btn-sec" id="limparHist">🗑 Limpar histórico</button>' : ''}</div>` +
-      (historico.length ? `<div class="grade larga">${historico.map(h => itemContinuar(h).replace('class="cont-item"', 'class="cont-item" style="flex:auto"')).join('')}</div>`
+      (historico.length ? `<div class="grade larga">${historico.filter(h => conteudoPermitido(REG.get(h.id) || h.item)).map(h => itemContinuar(h).replace('class="cont-item"', 'class="cont-item" style="flex:auto"')).join('')}</div>`
         : '<div class="vazio"><div class="em">🕮</div>Você ainda não leu nada. Que tal começar por uma HQ oficial ou saga completa?<br><br><button class="btn btn-pri" data-ler="rserie:lux">🗯️ Ler HQ Lux #1</button></div>');
     const b = $('#limparHist'); if (b) b.onclick = () => { if (confirm('Limpar todo o histórico?')) { historico = []; Auth.salvarDadosPerfil(); renderHistorico(); } };
   }
@@ -3262,6 +3319,7 @@
         <div class="stat-cartao"><span class="val">${st.nFinais}</span><span class="rot">🏆 Finais Descobertos</span></div>
       </div>
 
+      <div id="userAccessPanel"></div>
       ${painelMissoes()}
 
       ${historico.length ? `
@@ -3273,6 +3331,12 @@
       ` : ''}
     `;
 
+    EQUserAccessUI.mount($('#userAccessPanel'), {
+      user: u, prefs,
+      universes: UNIVERSOS.map(v => ({ id: v.id.replace(/^u-/, ''), nome: v.nome })),
+      save: hidden => { prefs.hiddenUniverses = hidden; salvarPrefs(); inicioPronto = false; Ex.uni = Ex.heroi = Ex.serie = null; },
+      refresh: atualizarPermissoes
+    });
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
     $('#btnEditarPerfil')?.addEventListener('click', () => abrirModalAuth('editar'));
@@ -4998,7 +5062,9 @@
     }
     const localRead = t.closest('[data-device-library] [data-ler]');
     if (localRead) {
+      try { await atualizarPermissoes(); } catch (error) { return toast(error.message); }
       const item = REG.get(localRead.dataset.ler);
+      if (!conteudoPermitido(item)) return toast('Este conteúdo não está disponível no seu perfil ou está oculto.');
       if (item) return Biblioteca.abrir({ ...item, storagePath: '' });
     }
     const addSerie = t.closest('[data-add-serie]');

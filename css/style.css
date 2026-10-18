@@ -722,3 +722,18 @@ body[data-library-layout="compact"] #aba-biblioteca .cartao h4, body[data-librar
 .series-item:has(input:checked) { background:var(--card2); }
 .series-destinos .series-drop-active { outline:3px solid var(--acento); background:var(--card2); }
 .series-organizador button { white-space:normal; overflow-wrap:anywhere; max-width:100%; }
+
+.access-panel { margin:24px 0; padding:20px; background:var(--card); border:1px solid var(--borda); border-radius:14px; }
+.access-panel p { color:var(--txt2); line-height:1.6; margin:12px 0; }
+.access-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:14px 0; }
+.access-options label { display:flex; align-items:center; gap:8px; min-height:36px; }
+.access-options input { width:20px; height:20px; flex-shrink:0; }
+.access-user { padding:12px 0; border-bottom:1px solid var(--borda); }
+.access-user summary { cursor:pointer; overflow-wrap:anywhere; }
+.access-user summary small { display:block; color:var(--txt2); margin:6px 0; }
+.access-user form > label { display:grid; gap:8px; margin:12px 0; }
+.access-user input:not([type=checkbox]), .access-user select, .access-user textarea { width:100%; min-width:0; padding:10px; border:1px solid var(--borda); border-radius:8px; color:var(--txt); background:var(--bg2); }
+.access-user fieldset { min-width:0; padding:12px; border:1px solid var(--borda); margin:12px 0; }
+.access-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px; }
+.access-user [hidden] { display:none; }
+@media(max-width:480px) { .access-panel { padding:12px; } .access-options { grid-template-columns:minmax(0,1fr); } }

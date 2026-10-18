@@ -1,18 +1,20 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v17-local-series';
+const CACHE_NAME = 'eq-cache-v18-access';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
-  './css/style.css?v=local-series-20261018-14',
-  './js/data.js?v=local-series-20261018-14',
-  './js/fontes.js?v=local-series-20261018-14',
-  './js/app.js?v=local-series-20261018-14',
-  './js/account-client.js?v=local-series-20261018-14',
-  './js/jszip.min.js?v=local-series-20261018-14',
-  './js/hq-package.js?v=local-series-20261018-14',
-  './js/reading-rewards.js?v=local-series-20261018-14',
+  './css/style.css?v=access-20261018-15',
+  './js/data.js?v=access-20261018-15',
+  './js/fontes.js?v=access-20261018-15',
+  './js/content-access.js?v=access-20261018-15',
+  './js/user-access-ui.js?v=access-20261018-15',
+  './js/app.js?v=access-20261018-15',
+  './js/account-client.js?v=access-20261018-15',
+  './js/jszip.min.js?v=access-20261018-15',
+  './js/hq-package.js?v=access-20261018-15',
+  './js/reading-rewards.js?v=access-20261018-15',
   './manifest.json',
   './assets/icon.svg',
   './assets/capas/guardia.jpg',

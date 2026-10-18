@@ -2,6 +2,7 @@
 const { storageStatus, reserveUpload } = require('./storage-quota');
 const { randomUUID } = require('node:crypto');
 const { request, configuration, HttpError } = require('./backend');
+const Access = require('../js/content-access');
 const BUCKET = 'comics';
 const MAX_BYTES = 500 * 1024 * 1024;
 const PART_BYTES = 4 * 1024 * 1024;
@@ -41,6 +42,7 @@ async function comicsAction(action, body, profile) {
     const item = rows[0]?.data?.externas?.find(item => item.id === body.id);
     // Only files actually published in the shared catalog can be signed for readers.
     if (!item || !FILE_PATH.test(item.storagePath || '')) throw new HttpError(404, 'O administrador ainda não publicou o arquivo desta HQ.');
+    if (!Access.allowed(item, profile.access, profile.role)) throw new HttpError(403, 'Esta HQ não está liberada para seu perfil.');
     const paths = item.storageParts === undefined ? [item.storagePath] : item.storageParts;
     if (!Array.isArray(paths) || !paths.length || paths.length > Math.ceil(MAX_BYTES / PART_BYTES)
       || paths[0] !== item.storagePath || paths.some(path => typeof path !== 'string' || !FILE_PATH.test(path))

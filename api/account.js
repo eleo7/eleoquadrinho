@@ -1,4 +1,6 @@
 'use strict';
+const Access = require('../js/content-access');
+const { usersAction } = require('../server/user-admin');
 const { uploadCover, readCover } = require('../server/covers');
 const { comicsAction } = require('../server/comics');
 const { HttpError, configuration, request, loginName, password, publicProfile } = require('../server/backend');
@@ -97,7 +99,7 @@ async function handler(req, res) {
         if ([400, 401].includes(error.status)) throw new HttpError(401, 'Login ou senha inválidos, ou e-mail ainda não confirmado.');
         throw error;
       }
-      const user = publicProfile(await profile(session.user.id));
+      const user = { ...publicProfile(await profile(session.user.id)), access: Access.normalize(session.user.app_metadata?.content_access) };
       setSession(res, session);
       return res.status(200).json({ user });
     }
@@ -112,15 +114,17 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, revoked });
     }
     const identity = await authenticate(req, res);
-    if (['state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
+    if (['users', 'state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
     const row = await profile(identity.id);
+    row.access = Access.normalize(identity.app_metadata?.content_access);
+    if (action === 'users') return res.status(200).json(await usersAction(req.method, body, row, req.query));
     if (action === 'cover-upload' && req.method === 'POST') return res.status(200).json(await uploadCover(body, row));
     if (action === 'cover-read' && req.method === 'GET') {
-      res.setHeader('Location', await readCover(req.query.path));
+      res.setHeader('Location', await readCover(req.query.path, row));
       res.status(307); return res.end();
     }
     if (['file-upload', 'file-read', 'storage-status'].includes(action) && req.method === 'POST') return res.status(200).json(await comicsAction(action, body, row));
-    if (action === 'session' && req.method === 'GET') return res.status(200).json({ user: publicProfile(row) });
+    if (action === 'session' && req.method === 'GET') return res.status(200).json({ user: { ...publicProfile(row), access: row.access } });
     if (action === 'profile' && req.method === 'PATCH') {
       if (Object.keys(body).some(k => !['nome', 'bio', 'avatar'].includes(k))) throw new HttpError(400, 'Campos de perfil inválidos.');
       const nome = String(body.nome || '').trim();
@@ -128,7 +132,7 @@ async function handler(req, res) {
       const avatar = String(body.avatar || '');
       if (!nome || nome.length > 80 || bio.length > 500 || avatar.length > 150000 || (avatar && !/^(https:\/\/|data:image\/(jpeg|png|webp);base64,)/.test(avatar))) throw new HttpError(400, 'Nome, bio ou avatar inválidos.');
       const rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(identity.id)}`, { admin: true, method: 'PATCH', body: { nome, bio, avatar }, prefer: 'return=representation' });
-      return res.status(200).json({ user: publicProfile(rows[0]) });
+      return res.status(200).json({ user: { ...publicProfile(rows[0]), access: row.access } });
     }
     if (['state', 'catalog'].includes(action)) {
       const catalog = action === 'catalog';
@@ -136,7 +140,8 @@ async function handler(req, res) {
       if (req.method === 'GET') {
         const table = catalog ? 'catalog?id=eq.1' : `reader_state?user_id=eq.${encodeURIComponent(identity.id)}`;
         const rows = await request(`/rest/v1/${table}&select=data,revision`, { admin: true });
-        return res.status(200).json(rows[0] || { data: {}, revision: 0 });
+        const snapshot = rows[0] || { data: {}, revision: 0 };
+        return res.status(200).json(catalog ? { ...snapshot, data: Access.filterCatalog(snapshot.data, row.access, row.role) } : snapshot);
       }
       if (req.method === 'PUT') {
         validateState(body.data, catalog);
