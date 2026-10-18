@@ -2689,6 +2689,23 @@
     pegar(id) { return this.op('readonly', s => s.get(id)); },
     salvar(o) { return this.op('readwrite', s => s.put(o)); },
     apagar(id) { return this.op('readwrite', s => s.delete(id)); },
+    async organizarSeries(changes, account) {
+      const db = await this.abrir();
+      if (Auth.usuario?.id !== account || !Auth.admin) throw new Error('Reabra a biblioteca na conta de administrador.');
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('arquivos', 'readwrite'), store = tx.objectStore('arquivos');
+        for (const item of changes.values()) {
+          const request = store.get(item.id);
+          request.onsuccess = () => {
+            if (!request.result || Auth.usuario?.id !== account) { tx.abort(); return; }
+            const { serieId, serieNome, edicaoNum, colecao, heroiId, heroiNome } = item;
+            store.put({ ...request.result, serieId, serieNome, edicaoNum, colecao, heroiId, heroiNome });
+          };
+        }
+        tx.oncomplete = resolve;
+        tx.onerror = tx.onabort = () => reject(new Error('Nenhuma HQ foi movida. Confira o espaço do navegador e tente novamente.'));
+      });
+    },
     async importarPacote(books, account) {
       const db = await this.abrir();
       if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Importe novamente na conta desejada.');
@@ -3485,31 +3502,35 @@
       (items.length ? `<div class="grade" data-device-library>${items.map(it => cartao({ ...it, localOnly: true })).join('')}</div>` : '<div class="vazio">Nenhuma HQ guardada neste dispositivo. Importe um arquivo ou um pacote acima para começar.</div>');
   }
 
-  function configurarOrganizadorSeries() {
-    const panel = $('#organizarSeries');
+  function configurarOrganizadorSeries(localItems = null) {
+    const localMode = localItems !== null;
+    const panelId = localMode ? 'organizarSeriesLocal' : 'organizarSeries';
+    const panel = $('#' + panelId);
+    const field = name => $('#series' + name + (localMode ? 'Local' : ''), panel);
+    const account = Auth.usuario?.id;
     if (!panel || !Auth.admin) return;
     const selected = new Set();
-    const items = [...externas, ...drive].sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR', { numeric: true }));
+    const items = (localMode ? localItems.filter(it => !externas.some(shared => shared.id === it.id) && !drive.some(shared => shared.id === it.id)) : [...externas, ...drive]).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR', { numeric: true }));
     let dragging = [], busy = false;
     panel.innerHTML = `<summary>📁 Organizar várias HQs em uma série</summary>
-      <p>Selecione as HQs e arraste uma delas para a série desejada. No celular, escolha a série e toque em Mover selecionadas. Apenas o catálogo da nuvem é alterado.</p>
+      <p>Selecione as HQs e arraste uma delas para a série desejada. No celular, escolha a série e toque em Mover selecionadas. ${localMode ? 'A organização é salva apenas neste navegador, sem upload. Cópias de HQs já publicadas são organizadas na aba Na nuvem.' : 'Apenas o catálogo da nuvem é alterado.'}</p>
       ${series.length ? `<div class="series-destinos">${series.map(s => `<button type="button" class="btn btn-sec" data-series-target="${esc(s.id)}">📁 ${esc(s.titulo)}</button>`).join('')}</div>
-      <div class="series-acoes"><label>Buscar HQ<input id="seriesBusca" type="search" placeholder="Título ou série atual"></label>
-      <label>Série de destino<select id="seriesDestino">${series.map(s => `<option value="${esc(s.id)}">${esc(s.titulo)}</option>`).join('')}</select></label>
-      <button type="button" class="btn btn-sec" id="seriesSelecionar">Selecionar resultados</button><button type="button" class="btn btn-sec" id="seriesLimpar">Limpar seleção</button>
-      <button type="button" class="btn btn-pri" id="seriesMover" disabled>Mover selecionadas</button></div>
-      <p id="seriesContagem" role="status">0 HQs selecionadas</p><div class="series-itens"></div>
-      <p>As HQs recebem números após a última edição da série, na ordem dos títulos. Obras que já estão nessa série permanecem como estão. Arquivos, histórico e favoritos são preservados.</p>` : '<p>Crie uma série no formulário abaixo para começar.</p>'}`;
+      <div class="series-acoes"><label>Buscar HQ<input id="seriesBusca${localMode ? 'Local' : ''}" type="search" placeholder="Título ou série atual"></label>
+      <label>Série de destino<select id="seriesDestino${localMode ? 'Local' : ''}">${series.map(s => `<option value="${esc(s.id)}">${esc(s.titulo)}</option>`).join('')}</select></label>
+      <button type="button" class="btn btn-sec" id="seriesSelecionar${localMode ? 'Local' : ''}">Selecionar resultados</button><button type="button" class="btn btn-sec" id="seriesLimpar${localMode ? 'Local' : ''}">Limpar seleção</button>
+      <button type="button" class="btn btn-pri" id="seriesMover${localMode ? 'Local' : ''}" disabled>Mover selecionadas</button></div>
+      <p id="seriesContagem${localMode ? 'Local' : ''}" role="status">0 HQs selecionadas</p><div class="series-itens"></div>
+      <p>As HQs recebem números após a última edição da série, na ordem dos títulos. Obras que já estão nessa série permanecem como estão. Arquivos, histórico e favoritos são preservados.</p>` : '<p>Crie uma série na aba Na nuvem para começar. Vincular arquivos locais à série não publica as HQs.</p>'}`;
     if (!series.length) return;
-    const visible = () => items.filter(it => norm(it.titulo + ' ' + (it.serieNome || '')).includes(norm($('#seriesBusca').value)));
+    const visible = () => items.filter(it => norm(it.titulo + ' ' + (it.serieNome || '')).includes(norm(field('Busca').value)));
     function refresh() {
       $('.series-itens', panel).innerHTML = visible().map(it => `<label class="series-item" draggable="true" data-series-item="${esc(it.id)}"><input type="checkbox" ${selected.has(it.id) ? 'checked' : ''} value="${esc(it.id)}"><span>${esc(it.titulo)}<small>${esc(it.serieNome || 'Sem série')}</small></span><span aria-hidden="true">⠿</span></label>`).join('') || '<p>Nenhuma HQ encontrada.</p>';
-      $('#seriesContagem').textContent = `${selected.size} HQ(s) selecionada(s)`;
-      $('#seriesMover').disabled = !selected.size || busy;
+      field('Contagem').textContent = `${selected.size} HQ(s) selecionada(s)`;
+      field('Mover').disabled = !selected.size || busy;
     }
     async function move(target, ids) {
-      if (busy || !Auth.admin || !ids.length) return;
-      if (catalogSync.conflict) return toast('Resolva o conflito de sincronização antes de mover as HQs.');
+      if (busy || !Auth.admin || !ids.length || Auth.usuario?.id !== account) return;
+      if (!localMode && catalogSync.conflict) return toast('Resolva o conflito de sincronização antes de mover as HQs.');
       const destination = series.find(s => s.id === target);
       if (!destination) return;
       const chosen = new Set(ids);
@@ -3521,26 +3542,32 @@
       if (!changes.size) return toast('As HQs selecionadas já estão nesta série.');
       busy = true; refresh();
       try {
-        const nextExternal = externas.map(it => changes.get(it.id) || it);
-        const nextDrive = drive.map(it => changes.get(it.id) || it);
-        catalogSync.update({ externas: nextExternal, drive: nextDrive });
-        externas = nextExternal; drive = nextDrive;
-        for (const item of changes.values()) {
-          const local = await BD.pegar(item.id).catch(() => null);
-          if (local) await BD.salvar({ ...local, serieId: item.serieId, serieNome: item.serieNome, edicaoNum: item.edicaoNum, colecao: item.colecao, heroiId: item.heroiId, heroiNome: item.heroiNome }).catch(() => {});
-          reg(item);
+        if (localMode) {
+          await BD.organizarSeries(changes, account);
+          if (Auth.usuario?.id !== account) return;
+          changes.forEach(reg);
+        } else {
+          const nextExternal = externas.map(it => changes.get(it.id) || it);
+          const nextDrive = drive.map(it => changes.get(it.id) || it);
+          catalogSync.update({ externas: nextExternal, drive: nextDrive });
+          externas = nextExternal; drive = nextDrive;
+          for (const item of changes.values()) {
+            const local = await BD.pegar(item.id).catch(() => null);
+            if (local) await BD.salvar({ ...local, serieId: item.serieId, serieNome: item.serieNome, edicaoNum: item.edicaoNum, colecao: item.colecao, heroiId: item.heroiId, heroiNome: item.heroiNome }).catch(() => {});
+            reg(item);
+          }
         }
         await renderBiblioteca();
-        $('#organizarSeries').open = true;
+        $('#' + panelId).open = true;
         renderMinhasHQs();
-        toast(`${changes.size} HQ(s) movida(s) para ${destination.titulo}. Alteração aguardando sincronização.`);
+        toast(`${changes.size} HQ(s) movida(s) para ${destination.titulo}. ${localMode ? 'Salvas somente neste dispositivo, sem ocupar a nuvem.' : 'Alteração aguardando sincronização.'}`);
       } catch (error) { toast('Não foi possível organizar as HQs: ' + error.message); }
       finally { busy = false; }
     }
-    $('#seriesBusca').oninput = refresh;
-    $('#seriesSelecionar').onclick = () => { visible().forEach(it => selected.add(it.id)); refresh(); };
-    $('#seriesLimpar').onclick = () => { selected.clear(); refresh(); };
-    $('#seriesMover').onclick = () => move($('#seriesDestino').value, [...selected]);
+    field('Busca').oninput = refresh;
+    field('Selecionar').onclick = () => { visible().forEach(it => selected.add(it.id)); refresh(); };
+    field('Limpar').onclick = () => { selected.clear(); refresh(); };
+    field('Mover').onclick = () => move(field('Destino').value, [...selected]);
     panel.onchange = e => { if (e.target.matches('.series-item input')) { e.target.checked ? selected.add(e.target.value) : selected.delete(e.target.value); refresh(); } };
     panel.ondragstart = e => {
       const row = e.target.closest('[data-series-item]'); if (!row || busy) return;
@@ -3551,7 +3578,7 @@
     panel.ondragover = e => { const target = e.target.closest('[data-series-target]'); if (target && dragging.length) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; target.classList.add('series-drop-active'); } };
     panel.ondragleave = e => e.target.closest('[data-series-target]')?.classList.remove('series-drop-active');
     panel.ondrop = e => { const target = e.target.closest('[data-series-target]'); if (!target || !dragging.length) return; e.preventDefault(); target.classList.remove('series-drop-active'); move(target.dataset.seriesTarget, dragging); dragging = []; };
-    $$('[data-series-target]', panel).forEach(button => { button.onclick = () => { $('#seriesDestino').value = button.dataset.seriesTarget; }; });
+    $$('[data-series-target]', panel).forEach(button => { button.onclick = () => { field('Destino').value = button.dataset.seriesTarget; }; });
     refresh();
   }
 
@@ -3580,7 +3607,7 @@
       <option value="folclore">Folclore Brasileiro</option>
       <option value="originais">Independentes / Outros</option>`;
 
-    el.innerHTML = abasBiblioteca() + `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}<div id="bibLocais"></div></section><section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud">
+    el.innerHTML = abasBiblioteca() + `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}<details id="organizarSeriesLocal" class="series-organizador"></details><div id="bibLocais"></div></section><section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud">
       <p class="biblioteca-ajuda">Catálogo compartilhado com os leitores. Publique aqui as HQs que devem aparecer em outras contas e dispositivos.</p>
       <details id="organizarSeries" class="series-organizador"></details>
       <p id="cloudSpace" role="status">Conferindo espaço da nuvem…</p>
@@ -4281,7 +4308,8 @@
       toggleSerie(false);
       renderMinhasHQs();
       configurarOrganizadorSeries();
-    renderSeriesBiblioteca();
+      BD.todos().then(files => configurarOrganizadorSeries(files.map(o => Biblioteca.item(o))));
+      renderSeriesBiblioteca();
       renderHeroisBiblioteca();
       renderListaBiblioteca();
 
@@ -4924,6 +4952,7 @@
     renderSeriesBiblioteca();
     renderHeroisBiblioteca();
     renderListaBiblioteca();
+    configurarOrganizadorSeries(locais);
     configurarAbasBiblioteca();
 
     // Se o usuário clicou em "✏️ Editar" em algum cartão ou detalhe, abre o item imediatamente no formulário

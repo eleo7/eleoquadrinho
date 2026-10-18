@@ -26,7 +26,7 @@ with sync_playwright() as p:
     assert byid['ext:1']['edicaoNum']==6 and byid['ext:2']['edicaoNum']==7
     assert byid['ext:1']['storagePath']=='keep.pdf'
     assert byid['ext:old']['edicaoNum']==5 and 'serieId' not in byid['ext:3']
-    page.locator('[data-series-item="ext:3"]').drag_to(page.locator('[data-series-target="serie:a"]'))
+    page.locator('[data-series-item="ext:3"]').drag_to(page.locator('#organizarSeries [data-series-target="serie:a"]'))
     page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('salvas na nuvem')")
     assert next(i for i in catalog['data']['externas'] if i['id']=='ext:3')['edicaoNum']==8
     page.set_viewport_size({'width':320,'height':900})
