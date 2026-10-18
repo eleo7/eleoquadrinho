@@ -737,3 +737,7 @@ body[data-library-layout="compact"] #aba-biblioteca .cartao h4, body[data-librar
 .access-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:16px; }
 .access-user [hidden] { display:none; }
 @media(max-width:480px) { .access-panel { padding:12px; } .access-options { grid-template-columns:minmax(0,1fr); } }
+
+#hqPackageSearch { display:block; width:100%; min-width:0; min-height:44px; margin:8px 0; padding:10px 12px; border:1px solid var(--borda); border-radius:8px; color:var(--txt); background:var(--bg2); }
+.package-filter-actions { display:flex; flex-wrap:wrap; gap:8px; }
+#hqPackageSearch:focus-visible { outline:2px solid var(--acento); outline-offset:2px; }

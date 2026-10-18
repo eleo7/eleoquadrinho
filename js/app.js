@@ -3466,6 +3466,10 @@
       <p id="localSpace" role="status"></p>
       <details class="pacotes-hq"><summary>Transferir HQs entre dispositivos</summary>
       <p>Selecione arquivos salvos neste navegador. O pacote inclui HQs, capas e informações, sem perfil, histórico ou favoritos. Até 500 MB por pacote; prefira lotes pequenos no celular.</p>
+      <label for="hqPackageSearch">Pesquisar HQs para transferir</label>
+      <input id="hqPackageSearch" type="search" placeholder="Título, série, personagem ou formato" autocomplete="off" aria-controls="hqPackageSelection">
+      <div class="package-filter-actions"><button type="button" class="btn btn-sec" id="hqPackageSelectResults">Selecionar resultados</button><button type="button" class="btn btn-sec" id="hqPackageClearSelection">Limpar seleção</button></div>
+      <p id="hqPackageSearchStatus" role="status" aria-live="polite"></p>
       <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
       <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
       <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" accept=".eleohq,.zip" hidden></label>
@@ -3491,15 +3495,36 @@
     const selection = $('#hqPackageSelection'), status = $('#hqPackageStatus');
     const exportButton = $('#exportHQPackage'), importInput = $('#importHQPackage');
     const account = Auth.usuario.id;
+    const search = $('#hqPackageSearch'), count = $('#hqPackageSearchStatus');
+    let files = [];
+    const selected = new Set();
+    const results = () => files.filter(o => norm([o.nome, o.serieNome, o.heroiNome, o.formato].join(' ')).includes(norm(search.value.trim())));
+    function renderOptions() {
+      const visible = results();
+      selection.innerHTML = visible.map(o => `<option value="${esc(o.id)}" ${selected.has(o.id) ? 'selected' : ''}>${esc(o.nome)}${o.serieNome ? ' · ' + esc(o.serieNome) : ''} (${esc(o.formato)})</option>`).join('');
+      const hiddenSelected = [...selected].filter(id => !visible.some(o => o.id === id)).length;
+      count.textContent = `${visible.length} de ${files.length} HQ(s) · ${selected.size} selecionada(s)${hiddenSelected ? ` (${hiddenSelected} fora do filtro)` : ''}.${!visible.length ? ' Nenhuma HQ encontrada.' : ''}`;
+    }
+    search.oninput = renderOptions;
+    selection.onchange = () => {
+      [...selection.options].forEach(o => { if (o.selected) selected.add(o.value); else selected.delete(o.value); });
+      // Preserve choices outside the current filter.
+      const visible = results();
+      const hiddenSelected = [...selected].filter(id => !visible.some(o => o.id === id)).length;
+      count.textContent = `${visible.length} de ${files.length} HQ(s) · ${selected.size} selecionada(s)${hiddenSelected ? ` (${hiddenSelected} fora do filtro)` : ''}.`;
+    };
+    $('#hqPackageSelectResults').onclick = () => { results().forEach(o => selected.add(o.id)); renderOptions(); };
+    $('#hqPackageClearSelection').onclick = () => { selected.clear(); renderOptions(); };
     BD.todos().then(items => {
       if (Auth.usuario?.id !== account || !selection.isConnected) return;
-      selection.innerHTML = items.filter(o => o.blob || o.blobs?.length).map(o => `<option value="${esc(o.id)}">${esc(o.nome)} (${esc(o.formato)})</option>`).join('');
-      if (!selection.options.length) status.textContent = 'Nenhum arquivo local disponível para exportar.';
+      files = items.filter(o => o.blob || o.blobs?.length);
+      renderOptions();
+      if (!files.length) status.textContent = 'Nenhum arquivo local disponível para exportar.';
     }).catch(() => { status.textContent = 'Não foi possível carregar os arquivos locais.'; });
     exportButton.onclick = async () => {
       exportButton.disabled = true;
       try {
-        const ids = new Set([...selection.selectedOptions].map(o => o.value));
+        const ids = new Set(selected);
         if (!ids.size) throw new Error('Selecione pelo menos uma HQ na lista.');
         const items = (await BD.todos()).filter(o => ids.has(o.id));
         if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Reabra a biblioteca.');
