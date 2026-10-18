@@ -5454,11 +5454,22 @@
   });
 
   async function sortear() {
-    await Promise.all([Dados.lol().catch(() => { }), Dados.cronicas().catch(() => { })]);
-    const pool = [...REG.values()].filter(i => ['riot-serie', 'riot-hq', 'riot-conto', 'ia', 'lol', 'conto', 'interativa', 'hq', 'regiao'].includes(i.tipo));
-    const it = pool[Math.random() * pool.length | 0];
-    toast('🎲 Que tal ler... ' + it.titulo + '?');
-    abrirDetalhe(it.id);
+    const button = $('#btnSorteio');
+    if (!Auth.usuario || button.disabled) return;
+    const account = Auth.usuario.id;
+    button.disabled = true;
+    try {
+      await Promise.all([Dados.lol().catch(() => {}), Dados.cronicas().catch(() => {})]);
+      if (Auth.usuario?.id !== account) return;
+      await atualizarPermissoes();
+      const pool = [...REG.values()].filter(i =>
+        ['riot-serie', 'riot-hq', 'riot-conto', 'ia', 'lol', 'conto', 'interativa', 'hq', 'regiao'].includes(i.tipo) && conteudoPermitido(i));
+      if (!pool.length) return toast('Nenhuma leitura disponível para sortear nos seus universos e categorias atuais.');
+      const it = pool[Math.floor(Math.random() * pool.length)];
+      toast('🎲 Que tal ler... ' + it.titulo + '?');
+      await abrirDetalhe(it.id);
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; }
   }
 
   /* ---------------- Início ---------------- */
