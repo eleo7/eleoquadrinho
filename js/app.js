@@ -3485,6 +3485,76 @@
       (items.length ? `<div class="grade" data-device-library>${items.map(it => cartao({ ...it, localOnly: true })).join('')}</div>` : '<div class="vazio">Nenhuma HQ guardada neste dispositivo. Importe um arquivo ou um pacote acima para começar.</div>');
   }
 
+  function configurarOrganizadorSeries() {
+    const panel = $('#organizarSeries');
+    if (!panel || !Auth.admin) return;
+    const selected = new Set();
+    const items = [...externas, ...drive].sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR', { numeric: true }));
+    let dragging = [], busy = false;
+    panel.innerHTML = `<summary>📁 Organizar várias HQs em uma série</summary>
+      <p>Selecione as HQs e arraste uma delas para a série desejada. No celular, escolha a série e toque em Mover selecionadas. Apenas o catálogo da nuvem é alterado.</p>
+      ${series.length ? `<div class="series-destinos">${series.map(s => `<button type="button" class="btn btn-sec" data-series-target="${esc(s.id)}">📁 ${esc(s.titulo)}</button>`).join('')}</div>
+      <div class="series-acoes"><label>Buscar HQ<input id="seriesBusca" type="search" placeholder="Título ou série atual"></label>
+      <label>Série de destino<select id="seriesDestino">${series.map(s => `<option value="${esc(s.id)}">${esc(s.titulo)}</option>`).join('')}</select></label>
+      <button type="button" class="btn btn-sec" id="seriesSelecionar">Selecionar resultados</button><button type="button" class="btn btn-sec" id="seriesLimpar">Limpar seleção</button>
+      <button type="button" class="btn btn-pri" id="seriesMover" disabled>Mover selecionadas</button></div>
+      <p id="seriesContagem" role="status">0 HQs selecionadas</p><div class="series-itens"></div>
+      <p>As HQs recebem números após a última edição da série, na ordem dos títulos. Obras que já estão nessa série permanecem como estão. Arquivos, histórico e favoritos são preservados.</p>` : '<p>Crie uma série no formulário abaixo para começar.</p>'}`;
+    if (!series.length) return;
+    const visible = () => items.filter(it => norm(it.titulo + ' ' + (it.serieNome || '')).includes(norm($('#seriesBusca').value)));
+    function refresh() {
+      $('.series-itens', panel).innerHTML = visible().map(it => `<label class="series-item" draggable="true" data-series-item="${esc(it.id)}"><input type="checkbox" ${selected.has(it.id) ? 'checked' : ''} value="${esc(it.id)}"><span>${esc(it.titulo)}<small>${esc(it.serieNome || 'Sem série')}</small></span><span aria-hidden="true">⠿</span></label>`).join('') || '<p>Nenhuma HQ encontrada.</p>';
+      $('#seriesContagem').textContent = `${selected.size} HQ(s) selecionada(s)`;
+      $('#seriesMover').disabled = !selected.size || busy;
+    }
+    async function move(target, ids) {
+      if (busy || !Auth.admin || !ids.length) return;
+      if (catalogSync.conflict) return toast('Resolva o conflito de sincronização antes de mover as HQs.');
+      const destination = series.find(s => s.id === target);
+      if (!destination) return;
+      const chosen = new Set(ids);
+      let number = Math.max(0, ...edicoesDaSerie(destination).map(it => Number(it.edicaoNum) || 0));
+      const changes = new Map(items.filter(it => chosen.has(it.id) && it.serieId !== target).map(it => [it.id, {
+        ...it, serieId: target, serieNome: destination.titulo, edicaoNum: ++number,
+        colecao: destination.colecao || it.colecao, heroiId: destination.heroiId || '', heroiNome: destination.heroiNome || ''
+      }]));
+      if (!changes.size) return toast('As HQs selecionadas já estão nesta série.');
+      busy = true; refresh();
+      try {
+        const nextExternal = externas.map(it => changes.get(it.id) || it);
+        const nextDrive = drive.map(it => changes.get(it.id) || it);
+        catalogSync.update({ externas: nextExternal, drive: nextDrive });
+        externas = nextExternal; drive = nextDrive;
+        for (const item of changes.values()) {
+          const local = await BD.pegar(item.id).catch(() => null);
+          if (local) await BD.salvar({ ...local, serieId: item.serieId, serieNome: item.serieNome, edicaoNum: item.edicaoNum, colecao: item.colecao, heroiId: item.heroiId, heroiNome: item.heroiNome }).catch(() => {});
+          reg(item);
+        }
+        await renderBiblioteca();
+        $('#organizarSeries').open = true;
+        renderMinhasHQs();
+        toast(`${changes.size} HQ(s) movida(s) para ${destination.titulo}. Alteração aguardando sincronização.`);
+      } catch (error) { toast('Não foi possível organizar as HQs: ' + error.message); }
+      finally { busy = false; }
+    }
+    $('#seriesBusca').oninput = refresh;
+    $('#seriesSelecionar').onclick = () => { visible().forEach(it => selected.add(it.id)); refresh(); };
+    $('#seriesLimpar').onclick = () => { selected.clear(); refresh(); };
+    $('#seriesMover').onclick = () => move($('#seriesDestino').value, [...selected]);
+    panel.onchange = e => { if (e.target.matches('.series-item input')) { e.target.checked ? selected.add(e.target.value) : selected.delete(e.target.value); refresh(); } };
+    panel.ondragstart = e => {
+      const row = e.target.closest('[data-series-item]'); if (!row || busy) return;
+      dragging = selected.has(row.dataset.seriesItem) ? [...selected] : [row.dataset.seriesItem];
+      e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragging.join('\n'));
+    };
+    panel.ondragend = () => { dragging = []; $$('.series-drop-active', panel).forEach(el => el.classList.remove('series-drop-active')); };
+    panel.ondragover = e => { const target = e.target.closest('[data-series-target]'); if (target && dragging.length) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; target.classList.add('series-drop-active'); } };
+    panel.ondragleave = e => e.target.closest('[data-series-target]')?.classList.remove('series-drop-active');
+    panel.ondrop = e => { const target = e.target.closest('[data-series-target]'); if (!target || !dragging.length) return; e.preventDefault(); target.classList.remove('series-drop-active'); move(target.dataset.seriesTarget, dragging); dragging = []; };
+    $$('[data-series-target]', panel).forEach(button => { button.onclick = () => { $('#seriesDestino').value = button.dataset.seriesTarget; }; });
+    refresh();
+  }
+
   async function renderBiblioteca() {
     const el = $('#aba-biblioteca');
     if (!Auth.admin) {
@@ -3512,6 +3582,7 @@
 
     el.innerHTML = abasBiblioteca() + `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}<div id="bibLocais"></div></section><section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud">
       <p class="biblioteca-ajuda">Catálogo compartilhado com os leitores. Publique aqui as HQs que devem aparecer em outras contas e dispositivos.</p>
+      <details id="organizarSeries" class="series-organizador"></details>
       <p id="cloudSpace" role="status">Conferindo espaço da nuvem…</p>
       <div class="secao-cab"><div><p>Arquivos enviados aqui ficam disponíveis a todos os leitores após a publicação (até 500 MB por HQ).</p>
         <button class="btn btn-pri" id="btnPublicarLocais">Publicar HQs já salvas neste navegador</button>
@@ -4209,7 +4280,8 @@
 
       toggleSerie(false);
       renderMinhasHQs();
-      renderSeriesBiblioteca();
+      configurarOrganizadorSeries();
+    renderSeriesBiblioteca();
       renderHeroisBiblioteca();
       renderListaBiblioteca();
 
@@ -4816,6 +4888,9 @@
     let locais = [];
     try { locais = (await BD.todos()).sort((a, b) => b.adicionado - a.adicionado).map(o => Biblioteca.item(o)); } catch (e) { console.warn(e); }
 
+    // Shared metadata remains authoritative after loading this device's file copies.
+    [...externas, ...drive].forEach(reg);
+
     function renderSeriesBiblioteca() {
       const bs = $('#bibSeries'); if (!bs) return;
       const listaS = series.map(s => REG.get(s.id) || reg(s));
@@ -4845,6 +4920,7 @@
     configurarLocal();
     atualizarEspacoNuvem();
     $('#btnPublicarLocais').onclick = e => Biblioteca.publicarPendentes(e.currentTarget);
+    configurarOrganizadorSeries();
     renderSeriesBiblioteca();
     renderHeroisBiblioteca();
     renderListaBiblioteca();
