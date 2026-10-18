@@ -129,3 +129,11 @@ A Biblioteca separa **Na nuvem** (catálogo compartilhado e publicação pelo ad
 A importação local e os pacotes ficam em **Neste dispositivo**; expanda **Transferir HQs entre dispositivos** para exportar/importar pacotes. As abas aceitam clique e teclado (setas, Home e End). No celular, o cabeçalho tem duas linhas, mantém perfil e busca acessíveis, e o acesso à biblioteca continua no menu inferior.
 
 O administrador pode remover uma cópia na aba **Neste dispositivo** sem excluir a HQ correspondente do catálogo da nuvem. A exclusão do conteúdo compartilhado continua na aba **Na nuvem**.
+
+### Missões de leitura e personalização
+
+Em **Perfil → Missões de leitura**, cada conta escolhe uma meta diária de 5, 10, 20, 30 ou 60 minutos. Nove missões desbloqueiam avatares, molduras e temas do site por tempo acumulado, obras concluídas e dias com a meta cumprida. O layout da biblioteca pode ser confortável ou compacto desde o início. As recompensas são cosméticas e não concedem permissões administrativas.
+
+O contador considera somente os leitores internos, com a página visível e em foco, e pausa depois de 90 segundos sem interação. Uma obra exige pelo menos 60 segundos de leitura ativa e 95% de progresso para contar como concluída, uma única vez por identificador. Links em leitores externos não contam. Os dias seguem America/Sao_Paulo; alterar uma meta já cumprida muda o objetivo dos próximos dias, preservando a conquista de hoje.
+
+O progresso começa nesta atualização, sem converter o histórico antigo em recompensas. Estado e aparência ficam em `reader_state.data.prefs.readingRewards`, com a sincronização e a proteção contra conflitos já existentes. Não há migração SQL. Limpar o histórico não apaga conquistas. Pacotes de HQs não exportam nem importam recompensas; a mesma HQ de um pacote mantém sua identidade de leitura ao ser reimportada. O tema do papel no leitor de texto permanece independente do tema do site.

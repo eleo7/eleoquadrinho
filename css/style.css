@@ -667,3 +667,43 @@ body:not(.conta-admin) [data-add-heroi] { display: none !important; }
 }
 #bibCloud .ajuda { overflow-wrap: anywhere; }
 #bibCloud .ajuda code { white-space: normal; }
+
+/* Personal reading rewards: themes apply to the site, not the reader's paper. */
+:root[data-site-theme="forest"] { --bg:#07120f; --bg2:#0d2019; --card:#132a22; --card2:#1c382e; --borda:#335447; --txt:#edf8f2; --txt2:#aac8b8; --acento:#79dfae; --acento2:#43b7ad; }
+:root[data-site-theme="nebula"] { --bg:#100b1a; --bg2:#1b122b; --card:#241a37; --card2:#312246; --borda:#51416c; --txt:#f5efff; --txt2:#bfafd6; --acento:#c3a0ff; --acento2:#f395c5; }
+:root[data-site-theme="sunset"] { --bg:#190d11; --bg2:#28151a; --card:#351e23; --card2:#46292d; --borda:#68434a; --txt:#fff2e8; --txt2:#d9b4a9; --acento:#ffba83; --acento2:#f28b96; }
+.avatar-header[data-frame="bronze"], .perfil-avatar-wrap[data-frame="bronze"] { border-color:#db995f; box-shadow:0 0 0 3px #744623,0 0 18px #db995f44; }
+.avatar-header[data-frame="silver"], .perfil-avatar-wrap[data-frame="silver"] { border-color:#e6efff; box-shadow:0 0 0 3px #798ca8,0 0 20px #b0d4ff66; }
+.avatar-header[data-frame="gold"], .perfil-avatar-wrap[data-frame="gold"] { border-color:#ffe499; box-shadow:0 0 0 3px #b38a25,0 0 24px #ffd96788; }
+.perfil-avatar-wrap { display:grid; place-items:center; font-size:48px; }
+.avatar-header span { line-height:1; }
+body[data-library-layout="compact"] #aba-biblioteca .grade, body[data-library-layout="compact"] #aba-salvos .grade { grid-template-columns:repeat(auto-fill,minmax(115px,1fr)); gap:14px 10px; }
+body[data-library-layout="compact"] #aba-biblioteca .cartao h4, body[data-library-layout="compact"] #aba-salvos .cartao h4 { font-size:13px; }
+.missoes-painel { margin:28px 0; }
+.missoes-resumo, .missoes-ajuda { color:var(--txt2); font-size:13px; line-height:1.6; }
+.missoes-ajuda { margin:12px 0 18px; max-width:850px; }
+.meta-leitura { display:flex; flex-wrap:wrap; align-items:center; gap:24px; border:1px solid var(--borda); border-radius:16px; background:var(--card); padding:20px; }
+.meta-leitura > div { flex:1; min-width:180px; }
+.meta-leitura p { color:var(--txt2); margin:8px 0; }
+.meta-leitura label { display:grid; gap:8px; font-size:13px; }
+.meta-leitura select { border:1px solid var(--borda); background:var(--bg2); color:var(--txt); padding:10px; border-radius:8px; min-height:44px; }
+.missoes-painel progress { display:block; width:100%; height:8px; border:0; border-radius:8px; overflow:hidden; background:var(--bg2); accent-color:var(--acento); }
+.missoes-painel progress::-webkit-progress-bar { background:var(--bg2); }
+.missoes-painel progress::-webkit-progress-value { background:var(--acento); }
+.missoes-painel progress::-moz-progress-bar { background:var(--acento); }
+.missoes-grade { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; }
+.missao-card { background:var(--card); border:1px solid var(--borda); border-radius:14px; padding:18px; }
+.missao-card.concluida { border-color:var(--acento); }
+.missao-icone { font-size:28px; }
+.missao-card h4 { margin:10px 0 6px; }
+.missao-card p, .missao-card small { display:block; color:var(--txt2); font-size:12px; line-height:1.5; }
+.missao-card progress { margin:14px 0 8px; }
+.personalizar-titulo { margin-top:28px; }
+.personalizar-grade { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+.personalizar-grade fieldset { min-width:0; border:1px solid var(--borda); border-radius:12px; padding:12px; }
+.personalizar-grade legend { padding:0 6px; font-weight:600; }
+.recompensa-opcao { display:inline-flex; gap:6px; align-items:center; min-height:44px; margin:4px; padding:8px 12px; border:1px solid var(--borda); border-radius:9px; background:var(--card); font-size:13px; }
+.recompensa-opcao[aria-pressed="true"] { border-color:var(--acento); color:var(--acento); background:var(--card2); }
+.recompensa-opcao:disabled { opacity:.55; cursor:not-allowed; }
+.recompensa-opcao:focus-visible { outline:2px solid var(--acento); outline-offset:2px; }
+@media(max-width:480px) { .missoes-painel .secao-cab { flex-direction:column; align-items:flex-start; } .meta-leitura { padding:14px; gap:14px; } .meta-leitura label { width:100%; } .missoes-grade, .personalizar-grade { grid-template-columns:minmax(0,1fr); } }
