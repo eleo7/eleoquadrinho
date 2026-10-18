@@ -2903,7 +2903,11 @@
     },
     async importar(arquivos, opcoes = {}) {
       if (!Auth.admin && !opcoes.local) return toast('Somente o administrador pode publicar conteúdo.');
-      const guardar = o => opcoes.local ? Biblioteca.guardarLocal(o) : Biblioteca.publicar(o);
+      const importAccount = Auth.usuario?.id;
+      const guardar = o => {
+        if (Auth.usuario?.id !== importAccount) throw new Error('A conta mudou durante a importação.');
+        return opcoes.local ? Biblioteca.guardarLocal(o) : Biblioteca.publicar(o);
+      };
       arquivos = [...arquivos]; if (!arquivos.length) return;
       const imgs = arquivos.filter(f => IMG_RE.test(f.name)).sort((a, b) => ordenarNat(a.name, b.name));
       const outros = arquivos.filter(f => !IMG_RE.test(f.name)).sort((a, b) => ordenarNat(a.name, b.name));
@@ -2971,8 +2975,14 @@
         };
         if (proxEdNum != null) proxEdNum++;
         try {
-          if (['cbz', 'zip'].includes(ext)) {
-            const zip = await JSZip.loadAsync(f);
+          if (['cbz', 'zip', 'cbr', 'rar'].includes(ext)) {
+            let archive = f;
+            if (['cbr', 'rar'].includes(ext)) {
+              toast('Abrindo CBR: ' + f.name + '…');
+              archive = await EQCBR.convert(f);
+              base.blob = archive;
+            }
+            const zip = await JSZip.loadAsync(archive);
             const pgs = Object.values(zip.files).filter(z => !z.dir && IMG_RE.test(z.name) && !z.name.startsWith('__MACOSX')).sort((a, b) => ordenarNat(a.name, b.name));
             if (!pgs.length) { toast(`${f.name}: nenhuma imagem encontrada`); continue; }
             const capaCbz = opcoes.capa || await miniatura(await pgs[0].async('blob'));
@@ -3000,14 +3010,13 @@
           } else if (['txt', 'md'].includes(ext)) {
             const obj = { ...base, formato: 'txt', capa: opcoes.capa || '' };
             if (!await guardar(obj)) continue;
-          } else if (ext === 'cbr' || ext === 'rar') {
-            toast('Arquivos CBR/RAR não são suportados no navegador — converta para CBZ ou PDF.'); continue;
+
           } else {
             toast(`Formato .${ext} não suportado`); continue;
           }
           n++;
           if (proxEdNum != null) proxEdNum++;
-        } catch (e) { toast(`Não foi possível importar ${f.name}. Confira o formato e o espaço livre do navegador.`); }
+        } catch (e) { toast(`Não foi possível importar ${f.name}. ${e.message || 'Confira o formato e o espaço livre do navegador.'}`); }
       }
       if (n) {
         renderMinhasHQs();
@@ -3452,7 +3461,8 @@
   function painelLocal() {
     return `<div class="painel" style="margin-bottom:20px;padding:16px"><h3>Adicionar arquivos neste dispositivo</h3>
       <p>Arquivos ficam só nesta conta e neste navegador, sem ocupar a nuvem. Mantenha um backup: limpar os dados do navegador pode apagá-los.</p>
-      <label class="btn btn-sec">Guardar HQs apenas neste navegador<input id="localHQInput" type="file" accept=".pdf,.cbz,.zip,.epub,.txt,.md,image/*" multiple hidden></label>
+      <label class="btn btn-sec">Guardar HQs apenas neste navegador<input id="localHQInput" type="file" accept=".pdf,.cbz,.cbr,.rar,.zip,.epub,.txt,.md,image/*" multiple hidden></label>
+      <p>CBR/RAR é convertido para CBZ no navegador, preservando as imagens. Arquivos com senha ou divididos em volumes não são suportados.</p>
       <p id="localSpace" role="status"></p>
       <details class="pacotes-hq"><summary>Transferir HQs entre dispositivos</summary>
       <p>Selecione arquivos salvos neste navegador. O pacote inclui HQs, capas e informações, sem perfil, histórico ou favoritos. Até 500 MB por pacote; prefira lotes pequenos no celular.</p>
@@ -3856,11 +3866,11 @@
         <!-- 6.5 Upload Direto de Arquivo PDF / CBZ / EPUB no Formulário -->
         <div id="blocoArquivoObra" style="background:rgba(245,179,1,.06);border:1px dashed rgba(245,179,1,.32);border-radius:10px;padding:12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
           <div>
-            <div style="font-weight:700;font-size:13px;color:var(--txt)">📄 Subir HQ em PDF, CBZ ou EPUB do Computador (Abre no Leitor Padrão do Sistema)</div>
+            <div style="font-weight:700;font-size:13px;color:var(--txt)">📄 Subir HQ em PDF, CBZ, CBR ou EPUB do Computador (Abre no Leitor Padrão do Sistema)</div>
             <small class="ajuda" id="extArquivoObraInfo">Se você subir um PDF sem adicionar capa acima, a <b>1ª página do PDF vira a capa automaticamente</b>!</small>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <label class="btn btn-sec" style="cursor:pointer;margin:0">📄 Escolher Arquivo PDF / CBZ<input type="file" id="extArquivoObraInput" accept=".pdf,.cbz,.zip,.epub,.txt" hidden></label>
+            <label class="btn btn-sec" style="cursor:pointer;margin:0">📄 Escolher Arquivo PDF / CBZ / CBR<input type="file" id="extArquivoObraInput" accept=".pdf,.cbz,.cbr,.rar,.zip,.epub,.txt" hidden></label>
             <button type="button" class="btn btn-sec" id="extLimparArquivoObra" style="display:none">✕ Remover arquivo</button>
           </div>
         </div>
@@ -3885,9 +3895,9 @@
 
       <div class="duas-col">
         <div class="painel">
-          <h4 style="margin-bottom:12px">📁 Importar arquivos em lote (PDF, CBZ, EPUB, Imagens)</h4>
-          <label class="drop" id="drop"><div class="em">⬆️</div><b>Arraste seus PDFs / CBZs aqui ou clique</b><br><small>A 1ª página de cada PDF vira a capa automaticamente e abre no Leitor Padrão</small>
-            <input type="file" id="arqInput" multiple hidden accept=".cbz,.zip,.pdf,.epub,.txt,.md,image/*"></label>
+          <h4 style="margin-bottom:12px">📁 Importar arquivos em lote (PDF, CBZ, CBR, EPUB, Imagens)</h4>
+          <label class="drop" id="drop"><div class="em">⬆️</div><b>Arraste seus PDFs / CBZs / CBRs aqui ou clique</b><br><small>A 1ª página de cada PDF vira a capa automaticamente e abre no Leitor Padrão</small>
+            <input type="file" id="arqInput" multiple hidden accept=".cbz,.cbr,.rar,.zip,.pdf,.epub,.txt,.md,image/*"></label>
           <p class="ajuda">Dica: Se você selecionar um <b>Herói</b> ou uma <b>Coleção/Série (Subpasta)</b> no formulário acima antes de soltar vários PDFs aqui, todos já serão vinculados automaticamente!</p>
           <button class="btn btn-sec" id="pastaBtn" style="margin-top:10px">🗂 Importar pasta de imagens</button>
           <input type="file" id="pastaInput" webkitdirectory hidden>
@@ -4425,8 +4435,17 @@
 
     // Upload direto de arquivo PDF / CBZ no formulário principal (extrai 1ª página como capa automaticamente)
     $('#extArquivoObraInput').onchange = async (e) => {
-      const f = e.target.files?.[0];
+      let f = e.target.files?.[0];
       if (!f) return;
+      if (/\.(cbr|rar)$/i.test(f.name)) {
+        arquivoObraSelecionado = null;
+        const input = e.target, save = $('#extSalvarBtn'), account = Auth.usuario?.id;
+        input.disabled = true; save.disabled = true; $('#extLimparArquivoObra').disabled = true;
+        $('#extArquivoObraInfo').textContent = 'Abrindo CBR e preparando as páginas…';
+        try { f = await EQCBR.convert(f); if (!input.isConnected || Auth.usuario?.id !== account) return; }
+        catch (error) { $('#extArquivoObraInfo').textContent = error.message; input.value = ''; return; }
+        finally { input.disabled = false; save.disabled = false; $('#extLimparArquivoObra')?.removeAttribute('disabled'); }
+      }
       arquivoObraSelecionado = f;
       capaExtraidaPdf = '';
       qtdPaginasArquivoObra = 0;

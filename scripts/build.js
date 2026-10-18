@@ -12,3 +12,11 @@ console.log('Site gerado em dist; configurações e código de servidor não sã
 
 fs.copyFileSync(path.join(root, 'node_modules/jszip/dist/jszip.min.js'), path.join(out, 'js/jszip.min.js'));
 fs.copyFileSync(path.join(root, 'node_modules/jszip/LICENSE.markdown'), path.join(out, 'js/jszip-LICENSE.txt'));
+
+require('esbuild').buildSync({
+  entryPoints: [path.join(root, 'scripts/cbr-worker.js')],
+  outfile: path.join(out, 'js/cbr-worker.js'),
+  bundle: true, platform: 'browser', format: 'iife', target: 'es2020', minify: true
+});
+fs.copyFileSync(path.join(root, 'node_modules/node-unrar-js/esm/js/unrar.wasm'), path.join(out, 'js/unrar.wasm'));
+fs.copyFileSync(path.join(root, 'node_modules/node-unrar-js/LICENSE.md'), path.join(out, 'js/node-unrar-LICENSE.md'));

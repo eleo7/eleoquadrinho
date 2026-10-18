@@ -1,20 +1,23 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v19-random';
+const CACHE_NAME = 'eq-cache-v20-cbr';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
-  './css/style.css?v=random-20261018-16',
-  './js/data.js?v=random-20261018-16',
-  './js/fontes.js?v=random-20261018-16',
-  './js/content-access.js?v=random-20261018-16',
-  './js/user-access-ui.js?v=random-20261018-16',
-  './js/app.js?v=random-20261018-16',
-  './js/account-client.js?v=random-20261018-16',
-  './js/jszip.min.js?v=random-20261018-16',
-  './js/hq-package.js?v=random-20261018-16',
-  './js/reading-rewards.js?v=random-20261018-16',
+  './css/style.css?v=cbr-20261018-17',
+  './js/data.js?v=cbr-20261018-17',
+  './js/fontes.js?v=cbr-20261018-17',
+  './js/content-access.js?v=cbr-20261018-17',
+  './js/user-access-ui.js?v=cbr-20261018-17',
+  './js/cbr-import.js?v=cbr-20261018-17',
+  './js/cbr-worker.js?v=cbr-20261018-17',
+  './js/unrar.wasm?v=cbr-20261018-17',
+  './js/app.js?v=cbr-20261018-17',
+  './js/account-client.js?v=cbr-20261018-17',
+  './js/jszip.min.js?v=cbr-20261018-17',
+  './js/hq-package.js?v=cbr-20261018-17',
+  './js/reading-rewards.js?v=cbr-20261018-17',
   './manifest.json',
   './assets/icon.svg',
   './assets/capas/guardia.jpg',

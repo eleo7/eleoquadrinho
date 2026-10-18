@@ -27,6 +27,8 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",
-    "jszip": "^3.10.1"
+    "esbuild": "0.25.12",
+    "jszip": "^3.10.1",
+    "node-unrar-js": "2.0.2"
   }
 }

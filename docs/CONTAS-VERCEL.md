@@ -157,3 +157,13 @@ A política é salva pelo servidor em `auth.users.raw_app_meta_data.content_acce
 A classificação usa `colecao`, `formatoObra`, tipo e formato do arquivo. Cadastre corretamente HQ/Mangá/Lore/História nas obras; PDFs não informam por si só qual categoria contêm. O acervo estático identifica também seu título de mangá Akira. Para perfis restritos, a busca usa apenas obras classificadas da estante, sem resultados externos sem classificação.
 
 Em **Perfil → Universos que quero ver**, o leitor oculta universos dentre os permitidos. A preferência vai para `reader_state.data.prefs.hiddenUniverses`, acompanha a conta e não apaga histórico, favoritos, arquivos ou recompensas, nem amplia permissões. O app verifica a sessão ao retomar a janela e antes de abrir detalhes/leitura; os endpoints de arquivos verificam cada solicitação. Contas em outros dispositivos precisam retomar/recarregar o app para renovar a interface.
+
+### Importação e leitura de CBR/RAR
+
+Os seletores de arquivos locais, importação em lote/arraste e formulário administrativo aceitam `.cbr` e `.rar`. O navegador usa o decodificador UnRAR em WebAssembly, dentro de um Worker separado, para converter o arquivo em CBZ. As imagens são copiadas sem recompressão, recebem nomes seguros e mantêm a ordem natural das páginas (1, 2, 10). A primeira página gera a capa. O CBZ resultante usa o leitor de HQs existente, com progresso, séries e exportação em pacotes `.eleohq`.
+
+Em **Neste dispositivo**, a conversão e a gravação são locais, sem enviar o CBR ou CBZ à nuvem. Na publicação administrativa, somente o CBZ convertido é enviado, usando a mesma cota e divisão de arquivos já existentes. O resultado pode ser maior que o CBR original; a cota não aumenta e o limite publicado continua sendo 500 MB. A primeira carga do decodificador exige conexão; seus arquivos ficam no cache do aplicativo.
+
+Limites da conversão: entrada e saída até 500 MB, conteúdo descompactado total até 500 MB, no máximo 50 MB por arquivo interno e 2.000 páginas. Arquivos com senha e RAR dividido em volumes não são suportados. Conversões que excedem dois minutos são interrompidas. O uso de memória pode limitar arquivos menores em celulares; nesses casos, divida a HQ. O original permanece no dispositivo do usuário, e falhas de conversão não criam uma HQ incompleta.
+
+Dependências fixadas no lockfile: `node-unrar-js` e `esbuild`. O build gera `dist/js/cbr-worker.js`, copia `unrar.wasm` e a licença do wrapper. A licença do UnRAR está em `assets/UNRAR-LICENSE.txt`. O worker contém também JSZip. Os testes de navegador constroem pequenos arquivos RAR4/RAR5 com imagens próprias e verificam o conteúdo, a ordem, a importação local e a publicação como CBZ.
