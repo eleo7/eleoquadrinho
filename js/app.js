@@ -3505,7 +3505,12 @@
       <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
       <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
       <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" hidden></label>
-      <p>No celular, salve o pacote em Downloads ou Arquivos e selecione-o aqui. O conteúdo é validado mesmo se o aparelho não reconhecer a extensão .eleohq.</p>
+      <p>Se o celular abriu o pacote como pasta, use uma das opções abaixo. Não importe os arquivos internos como HQs avulsas.</p>
+      <label class="btn btn-sec">Importar pasta descompactada<input id="importHQFolder" type="file" webkitdirectory multiple hidden></label>
+      <p>Selecione a pasta principal que contém manifest.json e a subpasta files.</p>
+      <label class="btn btn-sec">Adicionar manifest.json e arquivos<input id="importHQParts" type="file" multiple hidden></label>
+      <button type="button" class="btn btn-sec" id="clearHQParts">Limpar seleção de arquivos</button>
+      <p>Se o celular não permitir selecionar a pasta: adicione manifest.json e depois use o mesmo botão para selecionar todos os arquivos dentro de files. A seleção é acumulada enquanto esta tela estiver aberta.</p>
       </details><p id="hqPackageStatus" role="status"></p></div>`;
   }
   function configurarLocal() {
@@ -3571,14 +3576,25 @@
       } catch (error) { status.textContent = error.message; }
       finally { exportButton.disabled = false; }
     };
-    importInput.onchange = async () => {
-      importInput.disabled = true;
+    const folderInput = $('#importHQFolder'), partsInput = $('#importHQParts'), pendingParts = new Map();
+    $('#clearHQParts').onclick = () => { pendingParts.clear(); status.textContent = 'Seleção de arquivos descompactados limpa.'; };
+    async function importPackage(source, mode) {
+      const chosen = Array.from(source.files); if (!chosen.length) return;
+      importInput.disabled = folderInput.disabled = partsInput.disabled = true;
       let imported = null;
       try {
-        const file = importInput.files[0]; if (!file) return;
-        if (file.size > EQHQPackage.LIMIT + 12 * 1024 * 1024) throw new Error('Pacote acima do limite de 500 MB de HQs. Divida a exportação em lotes menores.');
+        const file = chosen[0];
+        if (mode === 'package' && file.name === 'manifest.json') throw new Error('Este pacote está descompactado. Use Importar pasta descompactada ou Adicionar manifest.json e arquivos.');
+        if (mode === 'package' && file.size > EQHQPackage.LIMIT + 12 * 1024 * 1024) throw new Error('Pacote acima do limite de 500 MB de HQs. Divida a exportação em lotes menores.');
         status.textContent = 'Conferindo os arquivos do pacote… Mantenha esta página aberta.';
-        const books = await EQHQPackage.unpack(file, JSZip);
+        if (mode === 'parts') {
+          const next = new Map(pendingParts);
+          chosen.forEach(file => next.set(file.name, file));
+          if (next.size > 201 || [...next.values()].reduce((sum, file) => sum + file.size, 0) > EQHQPackage.LIMIT + 10 * 1024 * 1024) throw new Error('Seleção acima do limite do pacote. Limpe a seleção e importe um pacote menor.');
+          pendingParts.clear(); next.forEach((file, name) => pendingParts.set(name, file));
+        }
+        const books = mode === 'package' ? await EQHQPackage.unpack(file, JSZip)
+          : await EQHQPackage.unpackFiles(mode === 'parts' ? [...pendingParts.values()] : chosen);
         const added = await BD.importarPacote(books, account);
         imported = added;
         if (Auth.usuario?.id !== account) return;
@@ -3598,8 +3614,11 @@
           ? `${imported} HQ(s) foram salvas neste navegador, mas a lista não atualizou. Reabra a biblioteca.`
           : 'Não foi possível importar: ' + message;
       }
-      finally { importInput.disabled = false; importInput.value = ''; }
-    };
+      finally { importInput.disabled = folderInput.disabled = partsInput.disabled = false; source.value = ''; }
+    }
+    importInput.onchange = () => importPackage(importInput, 'package');
+    folderInput.onchange = () => importPackage(folderInput, 'folder');
+    partsInput.onchange = () => importPackage(partsInput, 'parts');
   }
 
   async function atualizarEspacoNuvem() {

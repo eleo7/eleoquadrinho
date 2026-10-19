@@ -94,6 +94,30 @@
   async function unpack(bytes, Zip) {
     if ((bytes.size ?? bytes.byteLength) > LIMIT + 12 * 1024 * 1024) fail();
     const zip = bytes instanceof Blob ? await openBlob(bytes, Zip) : await Zip.loadAsync(bytes);
+    return validatePackage(zip);
+  }
+  async function unpackFiles(input) {
+    const files = Object.create(null);
+    const list = Array.from(input);
+    if (!list.length || list.length > 201) fail();
+    const root = list[0].webkitRelativePath?.split("/")[0];
+    let total = 0;
+    for (const file of list) {
+      total += file.size;
+      if (total > LIMIT + 10 * 1024 * 1024) fail();
+      const path = file.webkitRelativePath;
+      if (path && (!root || !path.startsWith(root + "/"))) fail();
+      const name = path ? path.slice(root.length + 1) : file.name === "manifest.json" ? file.name : "files/" + file.name;
+      if (Object.hasOwn(files, name) || (name !== "manifest.json" && !/^files\/\d+\.(pdf|cbz|epub|txt)$/.test(name))) fail();
+      files[name] = { dir: false, _data: { uncompressedSize: file.size }, async: async type => {
+        const bytes = await readBlob(file);
+        return type === "string" ? new TextDecoder().decode(bytes) : new Uint8Array(bytes);
+      }};
+    }
+    if (!files["manifest.json"]) throw new Error("Selecione também o manifest.json da pasta principal. Os arquivos selecionados continuam aguardando aqui.");
+    return validatePackage({files, file: name => files[name]}, true);
+  }
+  async function validatePackage(zip, extracted = false) {
     const files = Object.values(zip.files).filter(f => !f.dir);
     let expanded = 0;
     for (const f of files) {
@@ -111,6 +135,7 @@
       if (!b || !formats.includes(b.formato) || !new RegExp('^files/\\d+\\.' + b.formato + '$').test(b.file) || paths.has(b.file)) fail();
       paths.add(b.file);
       const file = zip.file(b.file);
+      if (!file && extracted) throw new Error('Falta selecionar ' + b.file + '. Adicione os arquivos da pasta files; a seleção anterior foi mantida.');
       if (!file || !Number.isSafeInteger(b.size) || b.size <= 0 || file._data.uncompressedSize !== b.size || !/^[a-f0-9]{64}$/.test(b.hash)) fail();
       total += b.size; if (total > LIMIT) fail();
       const content = await file.async('uint8array');
@@ -120,7 +145,7 @@
     if (files.length !== paths.size + 1) fail();
     return books;
   }
-  const api = { pack, unpack, LIMIT };
+  const api = { pack, unpack, unpackFiles, LIMIT };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.EQHQPackage = api;
 })(globalThis);

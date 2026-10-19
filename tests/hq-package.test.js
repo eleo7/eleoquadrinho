@@ -55,3 +55,20 @@ test('Blob import preserves compressed compatibility and rejects invalid directo
   const malformed = new Uint8Array(bytes); new DataView(malformed.buffer).setUint32(malformed.length - 6, 1, true);
   await assert.rejects(unpack(new Blob([malformed]), Zip));
 });
+test('extracted folder and separately selected files preserve metadata and reject incomplete or tampered content', async () => {
+  const { unpackFiles } = require('../js/hq-package');
+  const zip = await Zip.loadAsync(await pack([book()], Zip));
+  const files = await Promise.all(Object.values(zip.files).filter(f => !f.dir).map(async entry => {
+    const file = new File([await entry.async('uint8array')], entry.name.split('/').pop());
+    Object.defineProperty(file, 'webkitRelativePath', { value: 'hqs-2026/' + entry.name }); return file;
+  }));
+  const restored = await unpackFiles(files);
+  assert.equal(restored[0].nome, book().nome); assert.equal(restored[0].serieNome, 'Coleção');
+  const flat = files.map(file => new File([file], file.name));
+  assert.equal((await unpackFiles(flat))[0].packageHash, restored[0].packageHash);
+  await assert.rejects(unpackFiles(flat.filter(f => f.name !== 'manifest.json')), /manifest.json/);
+  await assert.rejects(unpackFiles(flat.filter(f => f.name === 'manifest.json')), /files\/0.pdf/);
+  await assert.rejects(unpackFiles([...flat, flat[0]]));
+  await assert.rejects(unpackFiles(flat.map(f => f.name === '0.pdf' ? new File(['oops'], f.name) : f)));
+  await assert.rejects(unpackFiles([...flat, new File(['{}'], 'profile.json')]));
+});

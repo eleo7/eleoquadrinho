@@ -26,6 +26,23 @@ with sync_playwright() as p:
     page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('Não foi possível importar: Pacote')")
     page.locator('#importHQPackage').set_input_files([])
     assert page.locator('#importHQPackage').is_enabled()
+    # Android file managers may show an extracted folder, not the original ZIP.
+    import tempfile
+    with tempfile.TemporaryDirectory() as directory:
+        root=Path(directory)/'hqs-2026';(root/'files').mkdir(parents=True)
+        (root/'manifest.json').write_text(json.dumps(manifest));(root/'files'/'0.txt').write_bytes(content)
+        page.locator('#importHQFolder').set_input_files(str(root))
+        page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('0 HQ(s) importadas')")
+        page.locator('#importHQParts').set_input_files(str(root/'manifest.json'))
+        page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('Falta selecionar files/0.txt')")
+        page.locator('#importHQParts').set_input_files(str(root/'files'/'0.txt'))
+        page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('0 HQ(s) importadas')")
+        assert json.dumps(cloud)==before and json.dumps(catalog)==before_catalog
+        page.locator('#importHQParts').set_input_files(str(root/'files'/'0.txt'))
+        page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('Selecione também o manifest.json')")
+        page.locator('.pacotes-hq summary').click()
+        page.locator('#clearHQParts').click()
+        assert 'seleção' in page.locator('#hqPackageStatus').inner_text().lower()
     page.evaluate("()=>{Blob.prototype.arrayBuffer=()=>Promise.reject(new DOMException('unreadable','NotReadableError'));}")
     page.locator('#importHQPackage').set_input_files(file)
     page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('pasta Downloads')")
