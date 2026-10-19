@@ -138,6 +138,14 @@ O contador considera somente os leitores internos, com a página visível e em f
 
 O progresso começa nesta atualização, sem converter o histórico antigo em recompensas. Estado e aparência ficam em `reader_state.data.prefs.readingRewards`, com a sincronização e a proteção contra conflitos já existentes. Não há migração SQL. Limpar o histórico não apaga conquistas. Pacotes de HQs não exportam nem importam recompensas; a mesma HQ de um pacote mantém sua identidade de leitura ao ser reimportada. O tema do papel no leitor de texto permanece independente do tema do site.
 
+### Coleção por XP e caçada semanal
+
+O painel do perfil exibe uma caçada de 60 minutos de leitura ativa por semana, de segunda a domingo no horário de Brasília, e a meta diária. O XP soma 10 pontos por minuto, 100 por obra concluída, 50 por meta diária cumprida e 300 por caçada semanal concluída. O bônus semanal é concedido automaticamente durante a leitura e uma única vez por semana; o registro `weeklyWins` preserva os bônus anteriores. O nível avança a cada 1.000 XP.
+
+A coleção oferece 23 opções de moldura (incluindo padrão e recompensas antigas), 10 de avatar, sete de tema e quatro layouts. Molduras e retratos vetoriais são fornecidos pelo próprio aplicativo. Vitrine amplia os cartões; Estante acrescenta prateleiras à biblioteca e aos salvos. Cada item bloqueado informa o XP ou a missão necessários; equipar não gasta XP. Aço e Sentinela estão disponíveis desde o início.
+
+Progresso já registrado nas missões conta para o XP e desbloqueios antigos continuam válidos. A nova galeria usa as mesmas preferências sincronizadas da conta, sem migração SQL. As recompensas são cosméticas e não constituem um ranking competitivo validado pelo servidor. O botão Continuar lendo respeita os universos, categorias e preferências do leitor.
+
 ### Organizar HQs em séries em lote
 
 O administrador acessa **Biblioteca → Na nuvem → Organizar várias HQs em uma série**. Pode buscar títulos ou séries atuais, selecionar os resultados e arrastar uma HQ selecionada para um dos destinos. O grupo inteiro é movido. Em telas sensíveis ao toque ou com teclado, escolha a série e use **Mover selecionadas**. Arrastar uma HQ não selecionada move apenas ela.

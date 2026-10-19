@@ -1,23 +1,24 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v21-transfer-search';
+const CACHE_NAME = 'eq-cache-v22-quest-gallery';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
-  './css/style.css?v=transfer-search-20261018-18',
-  './js/data.js?v=transfer-search-20261018-18',
-  './js/fontes.js?v=transfer-search-20261018-18',
-  './js/content-access.js?v=transfer-search-20261018-18',
-  './js/user-access-ui.js?v=transfer-search-20261018-18',
-  './js/cbr-import.js?v=transfer-search-20261018-18',
-  './js/cbr-worker.js?v=transfer-search-20261018-18',
-  './js/unrar.wasm?v=transfer-search-20261018-18',
-  './js/app.js?v=transfer-search-20261018-18',
-  './js/account-client.js?v=transfer-search-20261018-18',
-  './js/jszip.min.js?v=transfer-search-20261018-18',
-  './js/hq-package.js?v=transfer-search-20261018-18',
-  './js/reading-rewards.js?v=transfer-search-20261018-18',
+  './css/style.css?v=quest-gallery-20261018-19',
+  './js/data.js?v=quest-gallery-20261018-19',
+  './js/fontes.js?v=quest-gallery-20261018-19',
+  './js/content-access.js?v=quest-gallery-20261018-19',
+  './js/user-access-ui.js?v=quest-gallery-20261018-19',
+  './js/cbr-import.js?v=quest-gallery-20261018-19',
+  './js/cbr-worker.js?v=quest-gallery-20261018-19',
+  './js/unrar.wasm?v=quest-gallery-20261018-19',
+  './js/reward-art.js?v=quest-gallery-20261018-19',
+  './js/app.js?v=quest-gallery-20261018-19',
+  './js/account-client.js?v=quest-gallery-20261018-19',
+  './js/jszip.min.js?v=quest-gallery-20261018-19',
+  './js/hq-package.js?v=quest-gallery-20261018-19',
+  './js/reading-rewards.js?v=quest-gallery-20261018-19',
   './manifest.json',
   './assets/icon.svg',
   './assets/capas/guardia.jpg',

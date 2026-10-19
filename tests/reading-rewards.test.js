@@ -49,3 +49,41 @@ test('goals use the stated Brazil time zone and default state is empty per accou
   assert.equal(R.normalize(null).totalSeconds, 0);
   assert.equal(R.normalize({ goal: -2 }).goal, 10);
 });
+
+test('XP recognizes existing mission progress and new cosmetics keep legacy unlocks', () => {
+  const legacy = R.normalize({totalSeconds:1800,goalDays:2,books:{'work:old':{seconds:60,progress:1,completed:true}},appearance:{frame:'bronze',avatar:'owl',theme:'forest',layout:'compact'}});
+  assert.equal(R.xp(legacy),500);
+  assert.equal(R.appearance(legacy).frame,'bronze');
+  assert.ok(R.available(legacy,'frame','verdant'));
+  assert.ok(!R.available(legacy,'frame','flames'));
+  assert.throws(()=>R.equip(legacy,'layout','showcase'));
+  const earned=R.normalize({...legacy,totalSeconds:9000});
+  assert.ok(R.available(earned,'layout','showcase'));
+  assert.equal(R.appearance(R.equip(earned,'layout','showcase')).layout,'showcase');
+});
+test('weekly quest awards one persistent bonus and resets progress on Monday in Brazil', () => {
+  let s = read(null,3600,'book','2026-10-18',.5);
+  assert.equal(R.weekStart('2026-10-18'),'2026-10-12');
+  assert.equal(R.weekly(s,'2026-10-18').done,true);
+  assert.equal(Object.keys(s.weeklyWins).length,1);
+  const before=R.xp(s);
+  s=read(s,60,'book','2026-10-18',.5);
+  assert.equal(R.xp(s),before+10);
+  assert.equal(R.weekly(s,'2026-10-19').seconds,0);
+  s=read(s,3600,'book','2026-10-19',.5);
+  assert.equal(Object.keys(s.weeklyWins).length,2);
+  const retained=R.normalize({...s,days:{}});
+  assert.deepEqual(retained.weeklyWins,s.weeklyWins);
+  assert.equal(R.xp(retained),R.xp(s));
+});
+test('all frame thresholds unlock automatically without spending XP', () => {
+  let s=R.normalize({totalSeconds:180000});
+  const before=R.xp(s);
+  for(const frame of R.OPTIONS.frame.filter(o=>o.xp!==undefined)) {
+    assert.ok(R.available(s,'frame',frame.id));
+    s=R.equip(s,'frame',frame.id);
+    assert.equal(R.appearance(s).frame,frame.id);
+  }
+  assert.equal(R.xp(s),before);
+  assert.ok(!R.available(R.normalize(),'frame','dragon_frame'));
+});

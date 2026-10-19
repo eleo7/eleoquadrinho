@@ -33,8 +33,11 @@ with sync_playwright() as p:
     assert page.locator('[data-reward-id=bronze]').is_enabled()
     assert page.locator('[data-reward-id=forest]').is_disabled()
     assert 'Meta de hoje cumprida' in page.locator('.meta-leitura').inner_text()
+    page.locator('[data-reward-tab=avatar]').click()
     page.locator('[data-reward-id=owl]').click()
+    page.locator('[data-reward-tab=frame]').click()
     page.locator('[data-reward-id=bronze]').click()
+    page.locator('[data-reward-tab=layout]').click()
     page.locator('[data-reward-id=compact]').click()
     page.clock.run_for(1500)
     assert page.locator('#headerAvatar').inner_text() == '🦉'
@@ -53,6 +56,7 @@ with sync_playwright() as p:
     cloud['data']['prefs']['readingRewards']['totalSeconds'] = 1800
     themed = browser.new_context(service_workers='block', viewport={'width':320,'height':900}); connect(themed)
     theme_page = themed.new_page(); login(theme_page); theme_page.locator('nav [data-ir=perfil]').click()
+    theme_page.locator('[data-reward-tab=theme]').click()
     theme_page.locator('[data-reward-id=forest]').click()
     assert theme_page.locator('html').get_attribute('data-site-theme') == 'forest'
     assert theme_page.evaluate('document.documentElement.scrollWidth<=innerWidth')
