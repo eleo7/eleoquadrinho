@@ -383,7 +383,7 @@ details.dados-jogo[open] summary{color:var(--acento);margin-bottom:12px}
   .nav-inferior button{min-width:0;padding:6px 10px}
   .cartao{width:120px}.colecao-cartao{width:130px}
   .hq-pagina{height:auto;width:calc((100vw - 30px) * var(--zoom))}
-  .hq-seta{display:none}
+  .hq-seta{display:block;top:auto;bottom:64px;transform:none;width:44px;height:44px;font-size:30px;opacity:.8;background:rgba(11,12,17,.85);border:1px solid var(--borda)}
 }
 
 /* =========================================================

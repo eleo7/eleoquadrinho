@@ -5303,7 +5303,7 @@
     if (t.closest('#hqTela')) return alternarTela($('#leitorHQ'));
     if (t.closest('#hqMiniaturasBtn')) return $('#hqMiniaturas').classList.toggle('on');
     if (t.closest('#hqPalco') && LeitorHQ.modo !== 'rolagem' && !t.closest('button, select, input')) {
-      if (LeitorHQ.zoom > 1.05 || houveArrasto) return;
+      if (zoomHQAmpliado() || houveArrasto || toqueHQRecente(e)) return;
       const x = e.clientX / window.innerWidth;
       if (prefs.hqRTL) {
         if (x < 0.35) LeitorHQ.prox(); else if (x > 0.65) LeitorHQ.ant();
@@ -5428,9 +5428,13 @@
     toast(`🔎 Tamanho do texto: ${prefs.tam}px`);
   }, { passive: false });
 
-  // Duplo clique na página para alternar zoom (100% <-> 180%)
+  const zoomHQAmpliado = () => LeitorHQ.zoom > 1.05 || (window.visualViewport?.scale || 1) > 1.05;
+  let bloquearCliqueHQAte = 0;
+  const toqueHQRecente = e => e.pointerType === 'touch' || e.sourceCapabilities?.firesTouchEvents || performance.now() < bloquearCliqueHQAte;
+
+  // Duplo clique de mouse; no celular preserva o zoom nativo do navegador.
   $('#hqPalco').addEventListener('dblclick', (e) => {
-    if (e.target.closest('button, select, input')) return;
+    if (toqueHQRecente(e) || e.target.closest('button, select, input')) return;
     if (LeitorHQ.zoom > 1.05) {
       aplicarZoomHQ(1);
     } else {
@@ -5515,17 +5519,34 @@
     if (i >= 0 && i !== LeitorHQ.idx) { LeitorHQ.idx = i; clearTimeout(LeitorHQ.t); LeitorHQ.t = setTimeout(() => LeitorHQ.atualizarInfo(), 300); }
   }, { passive: true });
 
-  // gestos de deslizar no leitor de HQ
-  let toqueX = null;
-  $('#hqPalco').addEventListener('touchstart', e => { toqueX = e.touches[0].clientX; }, { passive: true });
+  // Um toque na arte nunca vira a página no celular. Pinça, pan e gestos
+  // cancelados não podem se tornar um swipe ao retirar o último dedo.
+  let gestoHQ = null;
+  $('#hqPalco').addEventListener('touchstart', e => {
+    bloquearCliqueHQAte = performance.now() + 1000;
+    if (e.touches.length !== 1 || gestoHQ) { if (gestoHQ) gestoHQ.blocked = true; return; }
+    const t = e.touches[0];
+    gestoHQ = { id: t.identifier, x: t.clientX, y: t.clientY, at: performance.now(),
+      blocked: zoomHQAmpliado() || !!e.target.closest('button, select, input, a') };
+  }, { passive: true });
+  $('#hqPalco').addEventListener('touchmove', e => {
+    if (gestoHQ && (e.touches.length !== 1 || zoomHQAmpliado())) gestoHQ.blocked = true;
+  }, { passive: true });
+  $('#hqPalco').addEventListener('touchcancel', () => {
+    gestoHQ = null; bloquearCliqueHQAte = performance.now() + 1000;
+  }, { passive: true });
   $('#hqPalco').addEventListener('touchend', e => {
-    if (toqueX == null || LeitorHQ.modo === 'rolagem' || LeitorHQ.zoom > 1) return;
-    const dx = e.changedTouches[0].clientX - toqueX; toqueX = null;
-    if (Math.abs(dx) > 60) {
+    bloquearCliqueHQAte = performance.now() + 1000;
+    if (e.touches.length) { if (gestoHQ) gestoHQ.blocked = true; return; }
+    const gesture = gestoHQ; gestoHQ = null;
+    if (!gesture || gesture.blocked || zoomHQAmpliado() || LeitorHQ.modo === 'rolagem' || performance.now() - gesture.at > 700) return;
+    const t = [...e.changedTouches].find(t => t.identifier === gesture.id); if (!t) return;
+    const dx = t.clientX - gesture.x, dy = t.clientY - gesture.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       if (prefs.hqRTL) dx < 0 ? LeitorHQ.ant() : LeitorHQ.prox();
       else dx < 0 ? LeitorHQ.prox() : LeitorHQ.ant();
     }
-  });
+  }, { passive: true });
 
   // efeito 3D e brilho holográfico nas capas
   let ultimo = null;
