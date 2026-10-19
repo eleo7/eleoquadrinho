@@ -42,9 +42,58 @@
     zip.file('manifest.json', manifest);
     return zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
   }
+  async function readBlob(blob) {
+    if (typeof blob.arrayBuffer === 'function') return blob.arrayBuffer();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error('Não foi possível ler o arquivo.'));
+      reader.onabort = () => reject(new Error('A leitura do arquivo foi interrompida.'));
+      reader.readAsArrayBuffer(blob);
+    });
+  }
+  // Our exports use STORE. Read their directory first and each HQ separately,
+  // instead of retaining a second copy of the entire package in mobile memory.
+  async function openBlob(blob, Zip) {
+    const tail = new Uint8Array(await readBlob(blob.slice(Math.max(0, blob.size - 65557))));
+    const view = new DataView(tail.buffer); let end = -1;
+    for (let i = tail.length - 22; i >= 0; i--) {
+      if (view.getUint32(i, true) === 0x06054b50 && i + 22 + view.getUint16(i + 20, true) === tail.length) { end = i; break; }
+    }
+    if (end < 0) fail();
+    const count = view.getUint16(end + 10, true), length = view.getUint32(end + 12, true), offset = view.getUint32(end + 16, true);
+    if (view.getUint16(end + 4, true) || view.getUint16(end + 6, true) || view.getUint16(end + 8, true) !== count || count > 402 || length > 1024 * 1024 || offset + length !== blob.size - tail.length + end) fail();
+    const directory = new Uint8Array(await readBlob(blob.slice(offset, offset + length)));
+    const d = new DataView(directory.buffer), files = Object.create(null); let pos = 0, compressed = false;
+    for (let n = 0; n < count; n++) {
+      if (pos + 46 > length || d.getUint32(pos, true) !== 0x02014b50) fail();
+      const flags = d.getUint16(pos + 8, true), method = d.getUint16(pos + 10, true);
+      const packed = d.getUint32(pos + 20, true), size = d.getUint32(pos + 24, true);
+      const nameLength = d.getUint16(pos + 28, true), extra = d.getUint16(pos + 30, true), comment = d.getUint16(pos + 32, true), local = d.getUint32(pos + 42, true);
+      if (flags & 1 || ![0, 8].includes(method) || d.getUint16(pos + 34, true) || pos + 46 + nameLength + extra + comment > length || local + 30 > offset || (method === 0 && packed !== size)) fail();
+      const name = new TextDecoder().decode(directory.subarray(pos + 46, pos + 46 + nameLength));
+      if (Object.hasOwn(files, name)) fail();
+      compressed ||= method !== 0;
+      files[name] = { dir: name.endsWith('/'), _data: { uncompressedSize: size }, async: async type => {
+        const header = new Uint8Array(await readBlob(blob.slice(local, local + 30)));
+        const h = new DataView(header.buffer);
+        if (h.getUint32(0, true) !== 0x04034b50 || h.getUint16(8, true) !== method || h.getUint16(6, true) !== flags) fail();
+        const start = local + 30 + h.getUint16(26, true) + h.getUint16(28, true);
+        if (start + packed > offset) fail();
+        const localName = new TextDecoder().decode(await readBlob(blob.slice(local + 30, local + 30 + h.getUint16(26, true))));
+        if (localName !== name) fail();
+        const data = new Uint8Array(await readBlob(blob.slice(start, start + packed)));
+        return type === 'string' ? new TextDecoder().decode(data) : data;
+      }};
+      pos += 46 + nameLength + extra + comment;
+    }
+    if (pos !== length) fail();
+    // Preserve compatibility with previously recompressed ZIP packages.
+    return compressed ? Zip.loadAsync(await readBlob(blob)) : { files, file: name => files[name] };
+  }
   async function unpack(bytes, Zip) {
-    if (bytes.byteLength > LIMIT + 12 * 1024 * 1024) fail();
-    const zip = await Zip.loadAsync(bytes);
+    if ((bytes.size ?? bytes.byteLength) > LIMIT + 12 * 1024 * 1024) fail();
+    const zip = bytes instanceof Blob ? await openBlob(bytes, Zip) : await Zip.loadAsync(bytes);
     const files = Object.values(zip.files).filter(f => !f.dir);
     let expanded = 0;
     for (const f of files) {

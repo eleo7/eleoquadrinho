@@ -175,3 +175,9 @@ Em **Neste dispositivo**, a conversão e a gravação são locais, sem enviar o 
 Limites da conversão: entrada e saída até 500 MB, conteúdo descompactado total até 500 MB, no máximo 50 MB por arquivo interno e 2.000 páginas. Arquivos com senha e RAR dividido em volumes não são suportados. Conversões que excedem dois minutos são interrompidas. O uso de memória pode limitar arquivos menores em celulares; nesses casos, divida a HQ. O original permanece no dispositivo do usuário, e falhas de conversão não criam uma HQ incompleta.
 
 Dependências fixadas no lockfile: `node-unrar-js` e `esbuild`. O build gera `dist/js/cbr-worker.js`, copia `unrar.wasm` e a licença do wrapper. A licença do UnRAR está em `assets/UNRAR-LICENSE.txt`. O worker contém também JSZip. Os testes de navegador constroem pequenos arquivos RAR4/RAR5 com imagens próprias e verificam o conteúdo, a ordem, a importação local e a publicação como CBZ.
+
+### Importação de pacotes no celular
+
+O seletor de pacotes aceita arquivos sem depender do reconhecimento da extensão `.eleohq` pelo Android/iOS. A validação continua verificando o manifesto, os formatos, os tamanhos e o SHA-256 de cada HQ antes de gravar na conta. Pacotes exportados pelo aplicativo são lidos por partes: diretório ZIP e depois uma HQ por vez, sem carregar uma cópia adicional de todo o pacote na memória. Pacotes recomprimidos com DEFLATE mantêm o caminho compatível via JSZip.
+
+A leitura dispõe de fallback FileReader. Erros de arquivo indisponível, memória e cota têm orientações específicas; uma falha ao atualizar a interface depois de gravar não é apresentada como importação perdida. O seletor não registra uma associação automática no gerenciador de arquivos do sistema: abra Biblioteca → Neste dispositivo → Transferir HQs entre dispositivos → Importar pacote de HQs. Salve primeiro os anexos em Downloads/Arquivos. Pacotes grandes ainda dependem da memória e do espaço do aparelho; prefira lotes pequenos.

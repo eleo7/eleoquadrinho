@@ -35,3 +35,23 @@ test('image albums become portable CBZs and preserve their order', async () => {
   assert.equal(await album.file('00000.png').async('string'), 'one');
   assert.equal(await album.file('00001.jpg').async('string'), 'two');
 });
+test('mobile Blob import reads bounded slices, checks hashes and preserves metadata', async () => {
+  const bytes = await pack([{ ...book(), blob: new Blob([new Uint8Array(100000)]) }, book()], Zip);
+  const input = new Blob([bytes]);
+  input.arrayBuffer = () => { throw new Error('Must not buffer the entire package'); };
+  const restored = await unpack(input, Zip);
+  assert.equal(restored.length, 2); assert.equal(restored[0].blob.size, 100000);
+  assert.equal(restored[1].serieNome, 'Coleção');
+  const damaged = new Uint8Array(bytes); damaged[1000] ^= 1;
+  await assert.rejects(unpack(new Blob([damaged]), Zip));
+});
+test('Blob import preserves compressed compatibility and rejects invalid directory and extra files', async () => {
+  const zip = await Zip.loadAsync(await pack([book()], Zip));
+  assert.equal((await unpack(new Blob([await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })]), Zip)).length, 1);
+  zip.file('profile.json', '{}');
+  await assert.rejects(unpack(new Blob([await zip.generateAsync({ type: 'uint8array' })]), Zip));
+  await assert.rejects(unpack(new Blob(['not a package']), Zip));
+  const bytes = await pack([book()], Zip);
+  const malformed = new Uint8Array(bytes); new DataView(malformed.buffer).setUint32(malformed.length - 6, 1, true);
+  await assert.rejects(unpack(new Blob([malformed]), Zip));
+});

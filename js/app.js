@@ -2780,7 +2780,7 @@
           }
         };
         tx.oncomplete = () => resolve(added);
-        tx.onabort = tx.onerror = () => reject(new Error('Não foi possível importar. Nenhuma HQ foi adicionada; confira o espaço livre e a conta aberta.'));
+        tx.onabort = tx.onerror = () => reject(tx.error || new Error('Nenhuma HQ foi adicionada. Confira o espaço livre e a conta aberta.'));
       });
     }
   };
@@ -3504,7 +3504,8 @@
       <p id="hqPackageSearchStatus" role="status" aria-live="polite"></p>
       <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
       <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
-      <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" accept=".eleohq,.zip" hidden></label>
+      <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" hidden></label>
+      <p>No celular, salve o pacote em Downloads ou Arquivos e selecione-o aqui. O conteúdo é validado mesmo se o aparelho não reconhecer a extensão .eleohq.</p>
       </details><p id="hqPackageStatus" role="status"></p></div>`;
   }
   function configurarLocal() {
@@ -3572,17 +3573,31 @@
     };
     importInput.onchange = async () => {
       importInput.disabled = true;
+      let imported = null;
       try {
         const file = importInput.files[0]; if (!file) return;
         if (file.size > EQHQPackage.LIMIT + 12 * 1024 * 1024) throw new Error('Pacote acima do limite de 500 MB de HQs. Divida a exportação em lotes menores.');
-        status.textContent = 'Conferindo os arquivos do pacote…';
-        const books = await EQHQPackage.unpack(await file.arrayBuffer(), JSZip);
+        status.textContent = 'Conferindo os arquivos do pacote… Mantenha esta página aberta.';
+        const books = await EQHQPackage.unpack(file, JSZip);
         const added = await BD.importarPacote(books, account);
+        imported = added;
         if (Auth.usuario?.id !== account) return;
         await renderMinhasHQs();
         await renderBiblioteca();
         $('#hqPackageStatus').textContent = `${added} HQ(s) importadas somente neste navegador; ${books.length - added} já importadas foram ignoradas. Perfil, histórico e favoritos preservados.`;
-      } catch (error) { status.textContent = 'Importação cancelada: ' + error.message; }
+      } catch (error) {
+        const message = error.name === 'NotReadableError' || error.name === 'NotFoundError'
+          ? 'Não foi possível ler o arquivo. Salve o pacote na pasta Downloads ou Arquivos do celular e selecione essa cópia.'
+          : error.name === 'QuotaExceededError'
+            ? 'O navegador está sem espaço. Libere armazenamento ou importe um pacote menor.'
+            : error instanceof RangeError
+              ? 'O pacote exige mais memória do que este navegador tem disponível. Exporte lotes menores e tente novamente.'
+              : error.message;
+        const target = $('#hqPackageStatus') || status;
+        if (Auth.usuario?.id === account) target.textContent = imported !== null
+          ? `${imported} HQ(s) foram salvas neste navegador, mas a lista não atualizou. Reabra a biblioteca.`
+          : 'Não foi possível importar: ' + message;
+      }
       finally { importInput.disabled = false; importInput.value = ''; }
     };
   }
