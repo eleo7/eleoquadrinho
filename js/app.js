@@ -93,6 +93,8 @@
         catalog.data = snapshot.data; catalog.revision = snapshot.revision; catalog.loaded = true;
       }
       readerSync = reader; catalogSync = catalog; accountUser = user;
+      for(const key of Object.keys(libraryViews)){clearTimeout(libraryViews[key].timer);delete libraryViews[key];}
+      rewardSearchState={query:'',filter:'all'};
       this.carregarDadosPerfil();
       drive = catalog.data.drive || []; externas = catalog.data.externas || [];
       herois = catalog.data.herois || []; series = catalog.data.series || [];
@@ -469,7 +471,7 @@
       const eds = edicoesDaSerie(it).filter(ed => conteudoPermitido(ed));
       src = eds[0]?.capa || '';
     }
-    if (src) return `<img src="${esc(src)}" alt="${esc(it.titulo)}" loading="lazy" data-id="${esc(it.id)}" data-largo="${largo ? 1 : 0}" onerror="EQ.falhaCapa(this)">`;
+    if (src) return `<img src="${esc(src)}" alt="${esc(it.titulo)}" loading="lazy" decoding="async" data-id="${esc(it.id)}" data-largo="${largo ? 1 : 0}" onerror="EQ.falhaCapa(this)">`;
     return capaSVG(it, largo);
   }
 
@@ -597,7 +599,7 @@
       if (c.id === 'arquivo') it.capa = `https://archive.org/services/img/${HQS_ACERVO.arquivo[0].ident}`;
     }
     return `<div class="cartao colecao-cartao" data-colecao="${c.id}" tabindex="0">
-      <div class="capa">${it.capa ? `<img src="${it.capa}" alt="${esc(c.nome)}" loading="lazy" data-id="${it.id}" onerror="EQ.falhaCapa(this)"><span class="rotulo">${esc(c.nome)}</span>` : capaSVG(it)}</div>
+      <div class="capa">${it.capa ? `<img src="${it.capa}" alt="${esc(c.nome)}" loading="lazy" decoding="async" data-id="${it.id}" onerror="EQ.falhaCapa(this)"><span class="rotulo">${esc(c.nome)}</span>` : capaSVG(it)}</div>
       <h4>${esc(c.nome)}</h4><p>${contagem(c)}</p></div>`;
   }
   const trilho = (html) => `<div class="trilho-wrap"><button class="trilho-seta esq" data-rolar="-1">‹</button><div class="trilho">${html}</div><button class="trilho-seta dir" data-rolar="1">›</button></div>`;
@@ -619,11 +621,12 @@
     const alvo = ['inicio', 'busca', 'historico', 'biblioteca', 'salvos', 'colecao', 'perfil', 'comunidade'].includes(aba) ? aba : 'inicio';
     abaAtual = alvo;
     $$('.aba').forEach(a => a.classList.toggle('ativa', a.id === 'aba-' + alvo));
-    $$('.nav-inferior button').forEach(b => b.classList.toggle('ativo', b.dataset.ir === alvo));
+    $$('.nav-inferior button').forEach(b => {const active=b.dataset.ir===alvo;b.classList.toggle('ativo',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     window.scrollTo({ top: 0 });
     ({ comunidade: renderComunidade, inicio: renderInicio, busca: renderBusca, historico: renderHistorico, biblioteca: renderBiblioteca, salvos: renderSalvos, perfil: renderPerfil, colecao: () => renderColecao(arg) })[alvo]();
   }
   window.addEventListener('hashchange', rota);
+  $('#skipContent').onclick=()=>{$('#app').focus();$('#app').scrollIntoView({block:'start'});};
 
   /* ---------------- Início ---------------- */
   let inicioPronto = false;
@@ -1298,7 +1301,7 @@
       $$('.destaque-pontos button', el).forEach((s, k) => s.classList.toggle('ativo', k === atual));
     };
     el.onclick = (e) => { const b = e.target.closest('[data-slide]'); if (b) { mostrar(+b.dataset.slide); reiniciar(); } };
-    const reiniciar = () => { clearInterval(destaqueTimer); destaqueTimer = setInterval(() => { if (!el.matches(':hover')) mostrar(atual + 1); }, 7000); };
+    const reiniciar = () => { clearInterval(destaqueTimer); destaqueTimer = setInterval(() => { if (abaAtual==='inicio'&&!document.hidden&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&!el.matches(':hover')) mostrar(atual + 1); }, 7000); };
     reiniciar();
   }
 
@@ -3229,6 +3232,7 @@
     const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey() });
     guardarRecompensas(next);
   }, 15000);
+  let rewardSearchState={query:'',filter:'all'};
   let rewardTab = 'frame';
   const rewardNumber = n => n.toLocaleString('pt-BR');
   function previaRecompensa(kind, option) {
@@ -3281,8 +3285,10 @@
   }
   function configurarMissoes() {
     $('#metaLeituraMinutos').onchange = e => { guardarRecompensas(EQReadingRewards.setGoal(estadoRecompensas(), Number(e.target.value), EQReadingRewards.dayKey())); renderPerfil(); };
+    $('#rewardSearch').value=rewardSearchState.query;$('#rewardFilter').value=rewardSearchState.filter;
     function filterRewards() {
       const query=norm($('#rewardSearch').value),filter=$('#rewardFilter').value;
+      rewardSearchState={query:$('#rewardSearch').value,filter};
       $$('[data-reward-name]').forEach(card=>{
         card.hidden=!norm(card.dataset.rewardName).includes(query)||(filter==='earned'&&card.dataset.rewardEarned!=='true')||(filter==='locked'&&card.dataset.rewardEarned==='true')||(filter==='event'&&card.dataset.rewardEvent!=='true');
       });
@@ -3386,6 +3392,7 @@
         <div class="stat-cartao"><span class="val">${st.nFinais}</span><span class="rot">🏆 Finais Descobertos</span></div>
       </div>
 
+      <nav class="profile-shortcuts" aria-label="Atalhos do perfil"><button data-profile-jump="tituloMissoes">🎯 Missões</button><button data-profile-jump="rewardSearch">✨ Recompensas</button><button data-profile-jump="userAccessPanel">⚙️ Preferências${Auth.admin?' e usuários':''}</button>${Auth.admin?'<button data-profile-jump="universeForm">🌌 Universos</button>':''}</nav>
       ${painelMissoes()}
       <div id="userAccessPanel"></div>
       ${gerenciadorUniversos()}
@@ -3405,6 +3412,7 @@
       save: hidden => { prefs.hiddenUniverses = hidden; salvarPrefs(); inicioPronto = false; Ex.uni = Ex.heroi = Ex.serie = null; },
       refresh: atualizarPermissoes
     });
+    $$('[data-profile-jump]',el).forEach(button=>button.onclick=()=>{const target=document.getElementById(button.dataset.profileJump);if(!target)return;const details=target.closest('details');if(details)details.open=true;target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});if(!target.matches('input,select,button,a'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});});
     configurarUniversos();
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
@@ -3690,21 +3698,41 @@
     });
     select(itemParaEditar ? 'cloud' : bibliotecaOrigem);
   }
-  let deviceLibraryItems = [], deviceLibraryVisible = 60;
-  function listaDispositivo(items) {
-    deviceLibraryItems = items.filter(it => conteudoPermitido(it)); deviceLibraryVisible = 60;
-    const visible = deviceLibraryItems.slice(0, deviceLibraryVisible);
-    return `<p class="biblioteca-ajuda">Arquivos guardados nesta conta e neste navegador. Eles não acompanham seu login em outro dispositivo; use um pacote de HQs para transferir.</p>` +
-      (visible.length ? `<div class="grade" data-device-library>${visible.map(it => cartao({ ...it, localOnly: true })).join('')}</div><button class="btn btn-sec" data-device-more ${deviceLibraryItems.length<=60?'hidden':''}>Mostrar mais HQs (${Math.min(60,deviceLibraryItems.length)} de ${deviceLibraryItems.length})</button>` : '<div class="vazio">Nenhuma HQ guardada neste dispositivo. Importe um arquivo ou um pacote acima para começar.</div>');
+  const libraryViews={};
+  function libraryPanel(items,origin) {
+    const old=libraryViews[origin];
+    const state=libraryViews[origin]={items:items.filter(it=>conteudoPermitido(it)),query:old?.query||'',status:old?.status||'all',sort:old?.sort||'recent',limit:60};
+    return `<div class="library-browser" data-library="${origin}"><div class="library-toolbar"><label class="library-search">Buscar nesta biblioteca<input type="search" data-library-query value="${esc(state.query)}" placeholder="Título, personagem ou série…"></label><label>Leitura<select data-library-status><option value="all">Todas</option><option value="reading">Em andamento</option><option value="unread">Não lidas</option><option value="finished">Concluídas</option></select></label><label>Ordenar<select data-library-sort><option value="recent">Ordem da biblioteca</option><option value="title">Título A–Z</option><option value="progress">Maior progresso</option></select></label></div><p class="library-count" role="status" data-library-count></p><div class="grade" ${origin==='device'?'data-device-library':''} data-library-grid></div><div class="library-empty" data-library-empty hidden><span>📚</span><h3>Nenhuma obra nesta seleção</h3><p>Use outro título ou limpe os filtros. Se a biblioteca estiver vazia, importe uma HQ na aba Neste dispositivo.</p><button class="btn btn-sec" data-library-reset>Limpar filtros</button></div><button class="btn btn-sec library-more" ${origin==='device'?'data-device-more':''} data-library-more>Mostrar mais</button></div>`;
   }
-  document.addEventListener('click', e => {
-    const button = e.target.closest('[data-device-more]'); if (!button) return;
-    const next = deviceLibraryItems.slice(deviceLibraryVisible, deviceLibraryVisible + 60);
-    $('[data-device-library]').insertAdjacentHTML('beforeend', next.map(it => cartao({...it,localOnly:true})).join(''));
-    deviceLibraryVisible += next.length;
-    button.hidden = deviceLibraryVisible >= deviceLibraryItems.length;
-    button.textContent = `Mostrar mais HQs (${deviceLibraryVisible} de ${deviceLibraryItems.length})`;
+  function updateLibrary(origin,append=false) {
+    const box=$(`[data-library="${origin}"]`),s=libraryViews[origin];if(!box||!s)return;
+    box.querySelector('[data-library-status]').value=s.status;box.querySelector('[data-library-sort]').value=s.sort;
+    const list=EQLibraryView.select(s.items,s,historico),end=Math.min(s.limit,list.length),start=append?Math.max(0,s.limit-60):0;
+    const html=list.slice(start,end).map(it=>cartao(origin==='device'?{...it,localOnly:true}:reg(it))).join('');
+    const grid=box.querySelector('[data-library-grid]');if(append)grid.insertAdjacentHTML('beforeend',html);else grid.innerHTML=html;
+    box.querySelector('[data-library-count]').textContent=`${end} de ${list.length} obra(s)${list.length!==s.items.length?' · '+s.items.length+' na biblioteca':''}`;
+    box.querySelector('[data-library-empty]').hidden=!!list.length;
+    const more=box.querySelector('[data-library-more]');more.disabled=false;more.hidden=end>=list.length;more.textContent=`Mostrar mais (${end} de ${list.length})`;
+  }
+  function setupLibraryViews(){for(const origin of ['cloud','device'])updateLibrary(origin);}
+  document.addEventListener('input',e=>{
+    const box=e.target.closest('[data-library]');if(!box||!e.target.matches('[data-library-query]'))return;
+    const s=libraryViews[box.dataset.library];s.query=e.target.value;s.limit=60;box.querySelector('[data-library-more]').disabled=true;clearTimeout(s.timer);s.timer=setTimeout(()=>updateLibrary(box.dataset.library),150);
   });
+  document.addEventListener('change',e=>{
+    const box=e.target.closest('[data-library]');if(!box)return;const s=libraryViews[box.dataset.library];
+    if(e.target.matches('[data-library-status]'))s.status=e.target.value;else if(e.target.matches('[data-library-sort]'))s.sort=e.target.value;else return;
+    s.limit=60;updateLibrary(box.dataset.library);
+  });
+  document.addEventListener('click',e=>{
+    const button=e.target.closest('[data-library-more],[data-library-reset]');if(!button)return;
+    const box=button.closest('[data-library]'),s=libraryViews[box.dataset.library];clearTimeout(s.timer);
+    if(button.hasAttribute('data-library-more')){s.limit+=60;updateLibrary(box.dataset.library,true);}
+    else{s.query='';s.status='all';s.sort='recent';s.limit=60;box.querySelector('[data-library-query]').value='';updateLibrary(box.dataset.library);box.querySelector('[data-library-query]').focus();}
+  });
+  function listaDispositivo(items) {
+    return `<p class="biblioteca-ajuda">Arquivos guardados nesta conta e neste navegador. Use um pacote de HQs para levar sua biblioteca a outro dispositivo.</p>`+libraryPanel(items,'device');
+  }
 
   function configurarOrganizadorSeries(localItems = null) {
     const localMode = localItems !== null;
@@ -3794,9 +3822,9 @@
       catch (error) { el.innerHTML = `<h2>Biblioteca</h2><p role="alert">${esc(error.message)}</p>`; return; }
       const nuvem = [...externas, ...drive, ...series];
       el.innerHTML = abasBiblioteca() +
-        `<section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud"><p class="biblioteca-ajuda">Obras compartilhadas pelo administrador, disponíveis na sua conta em outros dispositivos. A leitura usa internet.</p><div class="grade">${nuvem.map(it => cartao(reg(it))).join('')}</div>${!nuvem.length ? '<div class="vazio">Ainda não há obras publicadas na nuvem.</div>' : ''}</section>` +
+        `<section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud"><p class="biblioteca-ajuda">Obras compartilhadas pelo administrador, disponíveis na sua conta em outros dispositivos. A leitura usa internet.</p>${libraryPanel(nuvem,'cloud')}</section>` +
         `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}${listaDispositivo(pessoais)}</section>`;
-      configurarLocal(); configurarAbasBiblioteca();
+      configurarLocal(); configurarAbasBiblioteca(); setupLibraryViews();
       return;
     }
     // Garante que campeões do LoL já estejam disponíveis na lista de heróis
@@ -5155,9 +5183,8 @@
       const driveIts = drive.map(d => REG.get(d.id) || reg(d));
       const todos = [...new Map([...extIts, ...driveIts].map(it => [it.id, it])).values()];
       $('#bibLocais').innerHTML = listaDispositivo(locais);
-      $('#bibLista').innerHTML = secao('Minhas HQs, Edições, Mangás, Lores, Arquivos & Google Drive', `${todos.length} item(ns) · Use ✏️ Editar ou 🗑 Remover em qualquer cartão`, todos.length
-        ? `<div class="grade">${todos.map(i => cartao(i)).join('')}</div>`
-        : '<div class="vazio"><div class="em">📂</div>Sua biblioteca pessoal está vazia. Adicione uma Coleção/Série, HQ, Mangá ou Lore acima, vincule a um Herói ou envie arquivos CBZ/PDF.</div>');
+      $('#bibLista').innerHTML = secao('Seu catálogo na nuvem', `${todos.length} obra(s) publicada(s)`, libraryPanel(todos,'cloud'));
+      setupLibraryViews();
     }
 
     configurarLocal();
