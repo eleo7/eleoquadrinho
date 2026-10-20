@@ -741,7 +741,7 @@
   function configurarUniversos() {
     const form=$('#universeForm');if(!form||!Auth.admin)return;
     const f=form.elements;
-    f.source.onchange=()=>{const n=UNIVERSOS.find(n=>n.id===f.source.value);f.title.value=n?.nome||'';f.cover.value=f.cover.dataset.selectedImage||n?.cover||'';f.parent.value=n?.parent||'';};
+    f.source.onchange=()=>{const n=UNIVERSOS.find(n=>n.id===f.source.value);f.title.value=n?.nome||'';f.cover.value=n?.cover||'';f.parent.value=n?.parent||'';};
     async function save(type) {
       const status=$('#universeStatus');
       try {
@@ -3176,48 +3176,10 @@
     if (selected !== 'default') return `<span role="img" aria-label="Avatar ${esc(reward.label)}">${reward.icon}</span>`;
     return user?.avatar ? `<img src="${esc(user.avatar)}" alt="${esc(user.nome)}">` : `<span>${esc(user?.nome?.charAt(0).toUpperCase() || '👤')}</span>`;
   }
-  function aplicarPapelParede() {
-    const image=Auth.usuario&&EQUniverseTree.safeCover(prefs.wallpaper)?prefs.wallpaper:'';
-    document.body.style.backgroundImage=image?`linear-gradient(#080b14df,#080b14df),url("${image}")`:'';
-    document.body.classList.toggle('custom-wallpaper',!!image);
-  }
-  function configurarPapelParede() {
-    const panel=$('#wallpaperPanel');if(!panel)return;
-    panel.innerHTML=`<details class="painel"><summary>🖼️ Papel de parede do sistema</summary><p>Personalize o fundo da sua conta. Os temas e as cores continuam disponíveis nas recompensas.</p><form id="wallpaperForm"><label>Endereço HTTPS da imagem<input type="url" name="image" placeholder="https://.../imagem.jpg" value="${esc(prefs.wallpaper||'')}"></label><button class="btn btn-pri">Aplicar fundo</button><button class="btn btn-sec" type="button" data-wallpaper-clear>Restaurar fundo do tema</button></form><form id="imageSearchForm"><label>Buscar imagens grátis de animes e mangás<input name="query" type="search" minlength="2" maxlength="80" required placeholder="Naruto, Dragon Ball, One Piece…"></label><label>Categoria<select name="kind"><option value="anime">Anime</option><option value="manga">Mangá</option></select></label><button class="btn btn-pri">Buscar imagens</button></form><small>Capas via Jikan / MyAnimeList · sem chave de API. Não é um catálogo de wallpapers em alta resolução.</small><br><button class="btn btn-sec" data-pinterest-load>Buscar papéis de parede no Pinterest</button><p role="status" id="wallpaperStatus"></p><div class="wallpaper-grid"></div></details>`;
-    const form=panel.querySelector('form'),status=panel.querySelector('[role=status]');
-    const apply=image=>{if(image&&!EQUniverseTree.safeCover(image)){status.textContent='Informe um endereço HTTPS de imagem válido.';return;}prefs.wallpaper=image;salvarPrefs();aplicarPapelParede();form.elements.image.value=image;status.textContent=image?'Papel de parede aplicado à sua conta.':'Fundo do tema restaurado.';};
-    form.onsubmit=e=>{e.preventDefault();apply(form.elements.image.value.trim());};
-    panel.querySelector('[data-wallpaper-clear]').onclick=()=>apply('');
-    const search=panel.querySelector('#imageSearchForm');
-    search.onsubmit=async e=>{
-      e.preventDefault();const button=search.querySelector('button'),account=Auth.usuario.id;button.disabled=true;status.textContent='Buscando imagens…';
-      try{
-        const data=await EQAccount.api('image-search','POST',{q:search.elements.query.value,kind:search.elements.kind.value},account);
-        if(!panel.isConnected||Auth.usuario?.id!==account)return;
-        status.textContent=data.items.length?`${data.items.length} imagens encontradas · ${data.provider}`:'Nenhuma imagem encontrada. Tente outro nome.';
-        const grid=panel.querySelector('.wallpaper-grid');grid.innerHTML='';
-        for(const item of data.items){
-          const card=document.createElement('article'),img=document.createElement('img'),title=document.createElement('strong'),choose=document.createElement('button'),link=document.createElement('a');
-          img.src=item.image;img.alt=item.title;img.loading='lazy';title.textContent=item.title;choose.className='btn btn-sec';choose.textContent='Usar como fundo';choose.onclick=()=>apply(item.image);link.href=item.source;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Ver no MyAnimeList';card.append(img,title,choose,link);
-          if(Auth.admin){const cover=document.createElement('button');cover.className='btn btn-sec';cover.textContent='Usar como capa de universo';cover.onclick=()=>{const manager=$('#universeForm');if(!manager)return;manager.closest('details').open=true;manager.elements.cover.value=item.image;manager.elements.cover.dataset.selectedImage=item.image;manager.scrollIntoView({behavior:'smooth',block:'center'});$('#universeStatus').textContent='Imagem escolhida. Selecione o universo (ou crie um novo) e clique em Salvar universo.';};card.append(cover);}
-          grid.append(card);
-        }
-      }catch(err){status.textContent=err.message;}finally{button.disabled=false;}
-    };
-    panel.querySelector('[data-pinterest-load]').onclick=async e=>{
-      const button=e.currentTarget;button.disabled=true;status.textContent='Carregando painel do Pinterest…';
-      try{const data=await EQAccount.api('wallpapers','GET',undefined,Auth.usuario.id);if(!panel.isConnected)return;
-        status.textContent=data.configured?(data.items.length?'Escolha uma imagem. O painel é atualizado ao buscar novamente.':'Nenhuma imagem disponível neste painel.'):data.message;
-        const grid=panel.querySelector('.wallpaper-grid');grid.innerHTML='';
-        for(const item of data.items||[]){const card=document.createElement('article'),img=document.createElement('img'),choose=document.createElement('button'),link=document.createElement('a');img.src=item.image;img.alt=item.title;img.loading='lazy';choose.className='btn btn-sec';choose.textContent='Usar este fundo';choose.onclick=()=>apply(item.image);link.href=item.source;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Ver no Pinterest';card.append(img,choose,link);grid.append(card);}
-      }catch(err){status.textContent=err.message;}finally{button.disabled=false;}
-    };
-  }
   function aplicarRecompensas() {
     const state = estadoRecompensas(), selected = EQReadingRewards.appearance(state);
     document.documentElement.dataset.siteTheme = selected.theme;
     document.body.dataset.libraryLayout = selected.layout;
-    aplicarPapelParede();
     const header = $('#headerAvatar');
     if (header) { header.innerHTML = avatarRecompensa(Auth.usuario, state) + (selected.frame !== 'default' ? EQRewardArt.frame(selected.frame) : ''); header.dataset.frame = selected.frame; }
     const avatar = $('#aba-perfil .perfil-avatar-wrap');
@@ -3406,7 +3368,6 @@
       </div>
 
       ${painelMissoes()}
-      <div id="wallpaperPanel"></div>
       <div id="userAccessPanel"></div>
       ${gerenciadorUniversos()}
 
@@ -3425,7 +3386,6 @@
       save: hidden => { prefs.hiddenUniverses = hidden; salvarPrefs(); inicioPronto = false; Ex.uni = Ex.heroi = Ex.serie = null; },
       refresh: atualizarPermissoes
     });
-    configurarPapelParede();
     configurarUniversos();
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
