@@ -728,7 +728,7 @@
     const nodes = estruturaUniversos();
     UNIVERSOS = nodes.map(n => {
       const base = UNIVERSOS_BASE.find(b => b.id === n.id) || UNIVERSOS_BASE.find(b => b.cols.some(c=>n.cols.includes(c)));
-      return {...(base || {sub:'Organize suas coleções em subpastas',cor:['#182235','#eab64c'],emblema:'📁',img:()=>''}),...n,lol:n.cols.includes('lol')};
+      return {...(base || {sub:'Organize suas coleções em subpastas',cor:['#182235','#eab64c'],emblema:'📁',img:()=>''}),...n,img:()=>n.cover || (n.id==='u-mitologias'?'assets/capas/grega.jpg':base?.img()) || 'assets/universe-default.svg',lol:n.cols.includes('lol')};
     });
   }
   function pastaUniversoVisivel(u) {
@@ -736,19 +736,19 @@
   }
   function gerenciadorUniversos() {
     if(!Auth.admin)return '';
-    return `<details class="painel universe-manager"><summary>⚙️ Administrar universos e subpastas</summary><p>Edite nomes, transfira pastas ou unifique conteúdos. As permissões, arquivos e históricos são preservados.</p><form id="universeForm"><label>Universo ou subpasta<select name="source"><option value="">Novo universo / subpasta</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><label>Nome<input name="title" maxlength="80" required placeholder="Nome do universo"></label><label>Dentro de (transferir para)<select name="parent"><option value="">Raiz dos universos</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-pri" type="submit">Salvar universo</button><label>Destino da unificação<select name="target"><option value="">Selecione um destino</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-sec" type="button" data-universe-merge>Unificar com o destino</button><button class="btn btn-sec" type="button" data-universe-delete>Excluir pasta vazia</button><p role="status" id="universeStatus"></p></form></details>`;
+    return `<details class="painel universe-manager"><summary>⚙️ Administrar universos e subpastas</summary><p>Edite nomes, transfira pastas ou unifique conteúdos. As permissões, arquivos e históricos são preservados.</p><form id="universeForm"><label>Universo ou subpasta<select name="source"><option value="">Novo universo / subpasta</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><label>Nome<input name="title" maxlength="80" required placeholder="Nome do universo"></label><label>Capa (endereço HTTPS, opcional)<input name="cover" type="url" placeholder="https://.../imagem.jpg"></label><label>Dentro de (transferir para)<select name="parent"><option value="">Raiz dos universos</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-pri" type="submit">Salvar universo</button><label>Destino da unificação<select name="target"><option value="">Selecione um destino</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-sec" type="button" data-universe-merge>Unificar com o destino</button><button class="btn btn-sec" type="button" data-universe-delete>Excluir pasta vazia</button><p role="status" id="universeStatus"></p></form></details>`;
   }
   function configurarUniversos() {
     const form=$('#universeForm');if(!form||!Auth.admin)return;
     const f=form.elements;
-    f.source.onchange=()=>{const n=UNIVERSOS.find(n=>n.id===f.source.value);f.title.value=n?.nome||'';f.parent.value=n?.parent||'';};
+    f.source.onchange=()=>{const n=UNIVERSOS.find(n=>n.id===f.source.value);f.title.value=n?.nome||'';f.cover.value=n?.cover||'';f.parent.value=n?.parent||'';};
     async function save(type) {
       const status=$('#universeStatus');
       try {
         if(!Auth.admin||catalogSync.conflict)throw new Error('Resolva a sincronização antes de alterar universos.');
         const id=f.source.value;
         if(type!=='edit'&&!id)throw new Error('Selecione o universo de origem.');
-        const next=EQUniverseTree.change(estruturaUniversos(),{type:type==='edit'&&!id?'create':type,id:id||'u-'+crypto.randomUUID(),nome:f.title.value,parent:f.parent.value,target:f.target.value});
+        const next=EQUniverseTree.change(estruturaUniversos(),{type:type==='edit'&&!id?'create':type,id:id||'u-'+crypto.randomUUID(),nome:f.title.value,cover:f.cover.value.trim(),parent:f.parent.value,target:f.target.value});
         if(type==='merge'&&!confirm('Unificar estas pastas? O conteúdo e as subpastas serão movidos para o destino, preservando os arquivos e acessos.'))return;
         if(type==='delete'&&!confirm('Excluir esta pasta vazia?'))return;
         form.querySelectorAll('button').forEach(b=>b.disabled=true);
@@ -842,7 +842,7 @@
     const st = statsUniverso(u);
     const img = u.img();
     return `<button class="ex-uni" data-ex-uni="${u.id}" style="--c1:${u.cor[0]};--c2:${u.cor[1]}">
-      ${img ? `<span class="ex-uni-bg" style="background-image:url('${esc(img)}')"></span>` : ''}
+      ${img ? `<span class="ex-uni-bg" style="background-image:url('${esc(img)}'),url('assets/universe-default.svg')"></span>` : ''}
       <span class="ex-uni-vel"></span>
       <span class="ex-uni-emb">${esc(u.emblema)}</span>
       <span class="ex-uni-txt">
@@ -1040,7 +1040,7 @@
       const soltasO = obrasSoltasDoUniverso(u).filter(it => conteudoPermitido(it));
       const img = u.img();
       corpo = `<div class="ex-hero ex-hero-uni" style="--c1:${u.cor[0]};--c2:${u.cor[1]}">
-          ${img ? `<div class="ex-hero-bg" style="background-image:url('${esc(img)}')"></div>` : ''}
+          ${img ? `<div class="ex-hero-bg" style="background-image:url('${esc(img)}'),url('assets/universe-default.svg')"></div>` : ''}
           <div class="ex-hero-emb">${esc(u.emblema)}</div>
           <div class="ex-hero-info">
             <span class="etiqueta">Universo${UNIVERSOS.some(n=>n.parent===u.id)?' · Com subpastas':''}</span>
@@ -3176,10 +3176,32 @@
     if (selected !== 'default') return `<span role="img" aria-label="Avatar ${esc(reward.label)}">${reward.icon}</span>`;
     return user?.avatar ? `<img src="${esc(user.avatar)}" alt="${esc(user.nome)}">` : `<span>${esc(user?.nome?.charAt(0).toUpperCase() || '👤')}</span>`;
   }
+  function aplicarPapelParede() {
+    const image=Auth.usuario&&EQUniverseTree.safeCover(prefs.wallpaper)?prefs.wallpaper:'';
+    document.body.style.backgroundImage=image?`linear-gradient(#080b14df,#080b14df),url("${image}")`:'';
+    document.body.classList.toggle('custom-wallpaper',!!image);
+  }
+  function configurarPapelParede() {
+    const panel=$('#wallpaperPanel');if(!panel)return;
+    panel.innerHTML=`<details class="painel"><summary>🖼️ Papel de parede do sistema</summary><p>Personalize o fundo da sua conta. Os temas e as cores continuam disponíveis nas recompensas.</p><form id="wallpaperForm"><label>Endereço HTTPS da imagem<input type="url" name="image" placeholder="https://.../imagem.jpg" value="${esc(prefs.wallpaper||'')}"></label><button class="btn btn-pri">Aplicar fundo</button><button class="btn btn-sec" type="button" data-wallpaper-clear>Restaurar fundo do tema</button></form><button class="btn btn-sec" data-pinterest-load>Buscar papéis de parede no Pinterest</button><p role="status" id="wallpaperStatus"></p><div class="wallpaper-grid"></div></details>`;
+    const form=panel.querySelector('form'),status=panel.querySelector('[role=status]');
+    const apply=image=>{if(image&&!EQUniverseTree.safeCover(image)){status.textContent='Informe um endereço HTTPS de imagem válido.';return;}prefs.wallpaper=image;salvarPrefs();aplicarPapelParede();form.elements.image.value=image;status.textContent=image?'Papel de parede aplicado à sua conta.':'Fundo do tema restaurado.';};
+    form.onsubmit=e=>{e.preventDefault();apply(form.elements.image.value.trim());};
+    panel.querySelector('[data-wallpaper-clear]').onclick=()=>apply('');
+    panel.querySelector('[data-pinterest-load]').onclick=async e=>{
+      const button=e.currentTarget;button.disabled=true;status.textContent='Carregando painel do Pinterest…';
+      try{const data=await EQAccount.api('wallpapers','GET',undefined,Auth.usuario.id);if(!panel.isConnected)return;
+        status.textContent=data.configured?(data.items.length?'Escolha uma imagem. O painel é atualizado ao buscar novamente.':'Nenhuma imagem disponível neste painel.'):data.message;
+        const grid=panel.querySelector('.wallpaper-grid');grid.innerHTML='';
+        for(const item of data.items||[]){const card=document.createElement('article'),img=document.createElement('img'),choose=document.createElement('button'),link=document.createElement('a');img.src=item.image;img.alt=item.title;img.loading='lazy';choose.className='btn btn-sec';choose.textContent='Usar este fundo';choose.onclick=()=>apply(item.image);link.href=item.source;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Ver no Pinterest';card.append(img,choose,link);grid.append(card);}
+      }catch(err){status.textContent=err.message;}finally{button.disabled=false;}
+    };
+  }
   function aplicarRecompensas() {
     const state = estadoRecompensas(), selected = EQReadingRewards.appearance(state);
     document.documentElement.dataset.siteTheme = selected.theme;
     document.body.dataset.libraryLayout = selected.layout;
+    aplicarPapelParede();
     const header = $('#headerAvatar');
     if (header) { header.innerHTML = avatarRecompensa(Auth.usuario, state) + (selected.frame !== 'default' ? EQRewardArt.frame(selected.frame) : ''); header.dataset.frame = selected.frame; }
     const avatar = $('#aba-perfil .perfil-avatar-wrap');
@@ -3368,6 +3390,7 @@
       </div>
 
       ${painelMissoes()}
+      <div id="wallpaperPanel"></div>
       <div id="userAccessPanel"></div>
       ${gerenciadorUniversos()}
 
@@ -3386,6 +3409,7 @@
       save: hidden => { prefs.hiddenUniverses = hidden; salvarPrefs(); inicioPronto = false; Ex.uni = Ex.heroi = Ex.serie = null; },
       refresh: atualizarPermissoes
     });
+    configurarPapelParede();
     configurarUniversos();
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
