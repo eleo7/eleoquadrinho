@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5b301" />
-  <link rel="stylesheet" href="css/style.css?v=community-20261019-23" />
+  <link rel="stylesheet" href="css/style.css?v=reader-library-20261020-24" />
 </head>
 <body>
   <header class="topo">
@@ -111,7 +111,8 @@
     <div class="leitor-barra">
       <button class="btn-icone" data-fechar-leitor title="Fechar leitor (Esc)">←</button>
       <div class="leitor-titulo"><b id="hqTitulo"></b><small id="hqSub"></small></div>
-      <div class="leitor-acoes">
+      <button class="btn-icone hq-options-toggle" id="hqOpcoes" aria-expanded="false" aria-controls="hqControles" aria-label="Opções do leitor">⚙</button>
+      <div class="leitor-acoes" id="hqControles">
         <div class="leitor-grupo" id="hqGrupoModo">
           <select id="hqModo" title="Modo de leitura (Atalho: M)">
             <option value="pagina">📄 Página única</option>
@@ -121,16 +122,16 @@
         </div>
         <span class="divisor-v"></span>
         <div class="leitor-grupo">
-          <button class="btn-icone" id="hqSentido" title="Sentido de leitura: Ocidental / Mangá (Atalho: R)">📖</button>
-          <button class="btn-icone" id="hqSom" title="Som ao virar página (Atalho: S)">🔊</button>
-          <button class="btn-icone" id="hqCinema" title="Modo Cinema - Luz apagada (Atalho: C)">🎬</button>
+          <button class="btn-icone" id="hqSentido" aria-label="Mangá / ocidental" data-label="Mangá / ocidental" title="Sentido de leitura: Ocidental / Mangá (Atalho: R)">📖</button>
+          <button class="btn-icone" id="hqSom" aria-label="Som" data-label="Som" title="Som ao virar página (Atalho: S)">🔊</button>
+          <button class="btn-icone" id="hqCinema" aria-label="Cinema" data-label="Cinema" title="Modo Cinema - Luz apagada (Atalho: C)">🎬</button>
         </div>
         <span class="divisor-v"></span>
         <div class="leitor-grupo">
-          <button class="btn-icone" id="hqZoomMenos" title="Diminuir zoom (Atalho: −)">−</button>
-          <button class="btn-icone" id="hqZoomMais" title="Aumentar zoom (Atalho: +)">+</button>
-          <button class="btn-icone" id="hqTela" title="Tela cheia (Atalho: F)">⛶</button>
-          <button class="btn-icone" id="hqAjudaAtalhos" title="Atalhos do Teclado (Atalho: ?)">⌨️</button>
+          <button class="btn-icone" id="hqZoomMenos" aria-label="Diminuir zoom" data-label="Diminuir zoom" title="Diminuir zoom (Atalho: −)">−</button>
+          <button class="btn-icone" id="hqZoomMais" aria-label="Aumentar zoom" data-label="Aumentar zoom" title="Aumentar zoom (Atalho: +)">+</button>
+          <button class="btn-icone" id="hqTela" aria-label="Tela cheia" data-label="Tela cheia" title="Tela cheia (Atalho: F)">⛶</button>
+          <button class="btn-icone" id="hqAjudaAtalhos" aria-label="Ajuda" data-label="Ajuda" title="Atalhos do Teclado (Atalho: ?)">⌨️</button>
         </div>
       </div>
     </div>
@@ -160,22 +161,23 @@
 
   <div id="toast"></div>
 
-  <script src="js/jszip.min.js?v=community-20261019-23"></script>
+  <script src="js/jszip.min.js?v=reader-library-20261020-24"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="js/data.js?v=community-20261019-23"></script>
-  <script src="js/fontes.js?v=community-20261019-23"></script>
-  <script src="js/account-client.js?v=community-20261019-23"></script>
-  <script src="js/hq-package.js?v=community-20261019-23"></script>
-  <script src="js/reading-rewards.js?v=community-20261019-23"></script>
-  <script src="js/content-access.js?v=community-20261019-23"></script>
-  <script src="js/user-access-ui.js?v=community-20261019-23"></script>
-  <script src="js/cbr-import.js?v=community-20261019-23"></script>
-  <script src="js/reward-art.js?v=community-20261019-23"></script>
-  <script src="js/community.js?v=community-20261019-23"></script>
-  <script src="js/app.js?v=community-20261019-23"></script>
+  <script src="js/data.js?v=reader-library-20261020-24"></script>
+  <script src="js/fontes.js?v=reader-library-20261020-24"></script>
+  <script src="js/account-client.js?v=reader-library-20261020-24"></script>
+  <script src="js/hq-package.js?v=reader-library-20261020-24"></script>
+  <script src="js/reading-rewards.js?v=reader-library-20261020-24"></script>
+  <script src="js/content-access.js?v=reader-library-20261020-24"></script>
+  <script src="js/user-access-ui.js?v=reader-library-20261020-24"></script>
+  <script src="js/cbr-import.js?v=reader-library-20261020-24"></script>
+  <script src="js/reward-art.js?v=reader-library-20261020-24"></script>
+  <script src="js/community.js?v=reader-library-20261020-24"></script>
+  <script src="js/local-library.js?v=reader-library-20261020-24"></script>
+  <script src="js/app.js?v=reader-library-20261020-24"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js?v=community-20261019-23', { updateViaCache: 'none' }).catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=reader-library-20261020-24', { updateViaCache: 'none' }).catch(() => {});
     }
   </script>
 </body>

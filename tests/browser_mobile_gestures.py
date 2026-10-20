@@ -12,7 +12,16 @@ with sync_playwright() as p:
     page.locator('nav [data-ir=biblioteca]').click();page.locator('#tabDevice').click()
     page.locator('#localHQInput').set_input_files({'name':'Gestos.cbz','mimeType':'application/zip','buffer':archive.getvalue()})
     page.wait_for_selector('[data-device-library] [data-ler]');page.locator('[data-device-library] [data-ler]').first.click()
-    page.wait_for_selector('#leitorHQ.aberto');page.locator('#hqModo').select_option('pagina')
+    page.wait_for_selector('#leitorHQ.aberto');page.locator('#hqOpcoes').click();page.locator('#hqModo').select_option('pagina');page.locator('#hqOpcoes').click()
+    for width in [320,390,768,900]:
+        page.set_viewport_size({'width':width,'height':844});page.locator('#hqOpcoes').click()
+        assert page.locator('#hqOpcoes').get_attribute('aria-expanded')=='true'
+        assert page.evaluate("""()=>[...document.querySelectorAll('#hqControles button,#hqControles select')].every(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})""")
+        page.keyboard.press('Escape');assert page.locator('#leitorHQ').evaluate("el=>el.classList.contains('aberto')")
+        assert page.locator('#hqControles').is_hidden()
+    page.set_viewport_size({'width':390,'height':844});page.locator('#hqOpcoes').click()
+    page.screenshot(path='/tmp/eleo-reader-options-mobile.png')
+    page.locator('#hqOpcoes').click()
     def current(n):assert page.locator('#hqContador').inner_text()==f'{n} / 3'
     def touch(kind,active,changed):
         page.evaluate('''({kind,active,changed})=>{const target=document.querySelector('#hqPalco');

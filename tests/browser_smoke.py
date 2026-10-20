@@ -127,9 +127,10 @@ with sync_playwright() as p:
     admin_page.wait_for_selector('#painelFormObra')
     assert admin_page.locator('[data-editar="ext:test"]:visible').count() > 0
     admin_page.evaluate("""async()=>await new Promise((resolve,reject)=>{
-      const open=indexedDB.open('eleoquadrinho:user-admin',1);
-      open.onsuccess=()=>{const db=open.result;const tx=db.transaction('arquivos','readwrite');
-        tx.objectStore('arquivos').put({id:'local:legacy',nome:'HQ antiga',formato:'txt',blob:new Blob(['Conteudo antigo.'],{type:'text/plain'})});
+      const open=indexedDB.open('eleoquadrinho:user-admin');
+      open.onsuccess=()=>{const db=open.result;const tx=db.transaction(['arquivos','metadados'],'readwrite');
+        const book={id:'local:legacy',nome:'HQ antiga',formato:'txt',blob:new Blob(['Conteudo antigo.'],{type:'text/plain'})};
+        tx.objectStore('arquivos').put(book);tx.objectStore('metadados').put(EQLocalLibrary.metadata(book));
         tx.oncomplete=()=>{db.close();resolve()};tx.onerror=()=>reject(tx.error);
       };open.onerror=()=>reject(open.error);
     })""")
@@ -228,7 +229,8 @@ with sync_playwright() as p:
     admin_page.locator('#btnSairPerfil').click()
     admin_page.wait_for_selector('#formConta')
     assert admin_page.locator('#headerNome').inner_text() == 'Entrar'
-    assert admin_page.evaluate('(key)=>JSON.parse(localStorage.getItem(key))', pending_key) == pending
+    actual_pending = admin_page.evaluate('(key)=>JSON.parse(localStorage.getItem(key))', pending_key)
+    assert actual_pending == pending, {'actual': actual_pending, 'expected': pending}
     admin_page.reload(wait_until='domcontentloaded')
     admin_page.wait_for_selector('#formConta')
     assert admin_page.locator('#headerNome').inner_text() == 'Entrar'

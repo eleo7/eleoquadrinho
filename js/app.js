@@ -2693,6 +2693,7 @@
     },
     ir(i) { this.idx = Math.max(0, Math.min(this.paginas.length - 1, i)); this.render(); },
     fechar() {
+      fecharOpcoesHQ();
       const el = $('#leitorHQ');
       el.classList.remove('aberto', 'modo-cinema', 'mostrar-barras');
       this.limparPDF();
@@ -2735,61 +2736,7 @@
   const leitorAberto = () => $('.leitor.aberto');
 
   /* ---------------- Biblioteca local (IndexedDB) + Drive ---------------- */
-  const BD = {
-    db: null,
-    abrir() {
-      if (!Auth.usuario) return Promise.reject(new Error('Entre na sua conta.'));
-      if (this.db) return Promise.resolve(this.db);
-      return new Promise((ok, erro) => {
-        const r = indexedDB.open('eleoquadrinho:' + Auth.usuario.id, 1);
-        r.onupgradeneeded = () => r.result.createObjectStore('arquivos', { keyPath: 'id' });
-        r.onsuccess = () => ok(this.db = r.result); r.onerror = () => erro(r.error);
-      });
-    },
-    async op(modo, fn) { const db = await this.abrir(); return new Promise((ok, erro) => { const tx = db.transaction('arquivos', modo); const st = tx.objectStore('arquivos'); const r = fn(st); tx.oncomplete = () => ok(r?.result); tx.onerror = () => erro(tx.error); }); },
-    todos() { return this.op('readonly', s => s.getAll()); },
-    pegar(id) { return this.op('readonly', s => s.get(id)); },
-    salvar(o) { return this.op('readwrite', s => s.put(o)); },
-    apagar(id) { return this.op('readwrite', s => s.delete(id)); },
-    async organizarSeries(changes, account) {
-      const db = await this.abrir();
-      if (Auth.usuario?.id !== account || !Auth.admin) throw new Error('Reabra a biblioteca na conta de administrador.');
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('arquivos', 'readwrite'), store = tx.objectStore('arquivos');
-        for (const item of changes.values()) {
-          const request = store.get(item.id);
-          request.onsuccess = () => {
-            if (!request.result || Auth.usuario?.id !== account) { tx.abort(); return; }
-            const { serieId, serieNome, edicaoNum, colecao, heroiId, heroiNome } = item;
-            store.put({ ...request.result, serieId, serieNome, edicaoNum, colecao, heroiId, heroiNome });
-          };
-        }
-        tx.oncomplete = resolve;
-        tx.onerror = tx.onabort = () => reject(new Error('Nenhuma HQ foi movida. Confira o espaço do navegador e tente novamente.'));
-      });
-    },
-    async importarPacote(books, account) {
-      const db = await this.abrir();
-      if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Importe novamente na conta desejada.');
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('arquivos', 'readwrite');
-        const store = tx.objectStore('arquivos'); let added = 0;
-        const existing = store.getAll();
-        existing.onsuccess = () => {
-          if (Auth.usuario?.id !== account) { tx.abort(); return; }
-          const hashes = new Set(existing.result.filter(o => o.packageHash).map(o => o.formato + ':' + o.packageHash));
-          for (const book of books) {
-            const key = book.formato + ':' + book.packageHash;
-            if (hashes.has(key)) continue;
-            hashes.add(key);
-            store.add({ ...book, id: 'local:' + crypto.randomUUID(), adicionado: Date.now() }); added++;
-          }
-        };
-        tx.oncomplete = () => resolve(added);
-        tx.onabort = tx.onerror = () => reject(tx.error || new Error('Nenhuma HQ foi adicionada. Confira o espaço livre e a conta aberta.'));
-      });
-    }
-  };
+  const BD = EQLocalLibrary.create(() => Auth.usuario);
   const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp)$/i;
   const ordenarNat = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
@@ -2901,7 +2848,7 @@
         const pending = files.filter(o => !o.localOnly && !externas.some(it => it.id === o.id && it.storagePath));
         if (!pending.length) return toast('Não há arquivos locais pendentes neste navegador.');
         let count = 0;
-        for (const o of pending) { if (await Biblioteca.publicar(o)) count++; else break; }
+        for (const item of pending) { const o = await BD.pegar(item.id); if (o && await Biblioteca.publicar(o)) count++; else break; }
         toast(`${count} de ${pending.length} HQ(s) publicadas para os leitores.`);
         renderBiblioteca();
       } catch (error) { syncStatus(error.message, true); }
@@ -3109,20 +3056,6 @@
   function carregarArquivosLocais() {
     return BD.todos().then(async (l) => {
     l.forEach(o => { if (!externas.some(it => it.id === o.id && it.storagePath)) Biblioteca.item(o); });
-    renderMinhasHQs();
-    // Para qualquer PDF já salvo anteriormente sem capa, extrai automaticamente a 1ª página como capa!
-    for (const o of l) {
-      if (o.formato === 'pdf' && (!o.capa || !o.paginas) && o.blob) {
-        const meta = await PDFUtil.extrairCapaEPaginas(o.blob);
-        if (meta.capa || meta.paginas) {
-          if (!o.capa && meta.capa) o.capa = meta.capa;
-          if (!o.paginas && meta.paginas) o.paginas = meta.paginas;
-          await BD.salvar(o).catch(() => {});
-          Biblioteca.item(o);
-          atualizarCapa(o.id);
-        }
-      }
-    }
     renderMinhasHQs();
     }).catch(() => {});
   }
@@ -3561,7 +3494,7 @@
     $('#hqPackageClearSelection').onclick = () => { selected.clear(); renderOptions(); };
     BD.todos().then(items => {
       if (Auth.usuario?.id !== account || !selection.isConnected) return;
-      files = items.filter(o => o.blob || o.blobs?.length);
+      files = items.filter(o => o.hasFile);
       renderOptions();
       if (!files.length) status.textContent = 'Nenhum arquivo local disponível para exportar.';
     }).catch(() => { status.textContent = 'Não foi possível carregar os arquivos locais.'; });
@@ -3570,7 +3503,7 @@
       try {
         const ids = new Set(selected);
         if (!ids.size) throw new Error('Selecione pelo menos uma HQ na lista.');
-        const items = (await BD.todos()).filter(o => ids.has(o.id));
+        const items = (await Promise.all([...ids].map(id => BD.pegar(id)))).filter(Boolean);
         if (Auth.usuario?.id !== account) throw new Error('A conta mudou. Reabra a biblioteca.');
         status.textContent = 'Preparando pacote com os arquivos completos…';
         const bytes = await EQHQPackage.pack(items, JSZip);
@@ -3668,10 +3601,21 @@
     });
     select(itemParaEditar ? 'cloud' : bibliotecaOrigem);
   }
+  let deviceLibraryItems = [], deviceLibraryVisible = 60;
   function listaDispositivo(items) {
+    deviceLibraryItems = items.filter(it => conteudoPermitido(it)); deviceLibraryVisible = 60;
+    const visible = deviceLibraryItems.slice(0, deviceLibraryVisible);
     return `<p class="biblioteca-ajuda">Arquivos guardados nesta conta e neste navegador. Eles não acompanham seu login em outro dispositivo; use um pacote de HQs para transferir.</p>` +
-      (items.length ? `<div class="grade" data-device-library>${items.map(it => cartao({ ...it, localOnly: true })).join('')}</div>` : '<div class="vazio">Nenhuma HQ guardada neste dispositivo. Importe um arquivo ou um pacote acima para começar.</div>');
+      (visible.length ? `<div class="grade" data-device-library>${visible.map(it => cartao({ ...it, localOnly: true })).join('')}</div><button class="btn btn-sec" data-device-more ${deviceLibraryItems.length<=60?'hidden':''}>Mostrar mais HQs (${Math.min(60,deviceLibraryItems.length)} de ${deviceLibraryItems.length})</button>` : '<div class="vazio">Nenhuma HQ guardada neste dispositivo. Importe um arquivo ou um pacote acima para começar.</div>');
   }
+  document.addEventListener('click', e => {
+    const button = e.target.closest('[data-device-more]'); if (!button) return;
+    const next = deviceLibraryItems.slice(deviceLibraryVisible, deviceLibraryVisible + 60);
+    $('[data-device-library]').insertAdjacentHTML('beforeend', next.map(it => cartao({...it,localOnly:true})).join(''));
+    deviceLibraryVisible += next.length;
+    button.hidden = deviceLibraryVisible >= deviceLibraryItems.length;
+    button.textContent = `Mostrar mais HQs (${deviceLibraryVisible} de ${deviceLibraryItems.length})`;
+  });
 
   function configurarOrganizadorSeries(localItems = null) {
     const localMode = localItems !== null;
@@ -3756,7 +3700,9 @@
   async function renderBiblioteca() {
     const el = $('#aba-biblioteca');
     if (!Auth.admin) {
-      const pessoais = (await BD.todos()).map(o => Biblioteca.item(o));
+      let pessoais;
+      try { pessoais = (await BD.todos()).map(o => Biblioteca.item(o)); }
+      catch (error) { el.innerHTML = `<h2>Biblioteca</h2><p role="alert">${esc(error.message)}</p>`; return; }
       const nuvem = [...externas, ...drive, ...series];
       el.innerHTML = abasBiblioteca() +
         `<section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud"><p class="biblioteca-ajuda">Obras compartilhadas pelo administrador, disponíveis na sua conta em outros dispositivos. A leitura usa internet.</p><div class="grade">${nuvem.map(it => cartao(reg(it))).join('')}</div>${!nuvem.length ? '<div class="vazio">Ainda não há obras publicadas na nuvem.</div>' : ''}</section>` +
@@ -5094,7 +5040,7 @@
     };
 
     let locais = [];
-    try { locais = (await BD.todos()).sort((a, b) => b.adicionado - a.adicionado).map(o => Biblioteca.item(o)); } catch (e) { console.warn(e); }
+    try { locais = (await BD.todos()).sort((a, b) => b.adicionado - a.adicionado).map(o => Biblioteca.item(o)); } catch (e) { console.warn(e); toast(e.message); }
 
     // Shared metadata remains authoritative after loading this device's file copies.
     [...externas, ...drive].forEach(reg);
@@ -5411,6 +5357,27 @@
 
     mostrarBadgeZoom(`🔍 ${Math.round(novoZoom * 100)}%`);
   }
+
+  function fecharOpcoesHQ(focus = false) {
+    $('#hqOpcoes').setAttribute('aria-expanded', 'false');
+    $('#hqControles').classList.remove('opcoes-abertas');
+    if (focus) $('#hqOpcoes').focus();
+  }
+  $('#hqOpcoes').onclick = () => {
+    const open = $('#hqOpcoes').getAttribute('aria-expanded') !== 'true';
+    $('#hqOpcoes').setAttribute('aria-expanded', String(open));
+    $('#hqControles').classList.toggle('opcoes-abertas', open);
+  };
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest('#hqControles, #hqOpcoes')) fecharOpcoesHQ();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('#hqOpcoes').getAttribute('aria-expanded') === 'true') {
+      e.preventDefault(); e.stopImmediatePropagation(); fecharOpcoesHQ(true);
+    }
+  }, true);
+  const leitorMobile = matchMedia('(max-width: 900px)');
+  leitorMobile.addEventListener('change', () => fecharOpcoesHQ());
 
   // Zoom ao rolar o scroll do mouse no Leitor de HQ / PDF
   $('#hqPalco').addEventListener('wheel', (e) => {

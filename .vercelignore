@@ -6,6 +6,7 @@ dist/
 .env.*
 tests/
 docs/
-supabase/
+supabase/*
+!supabase/community.sql
 scripts/create-admin.js
 scripts/setup-storage.js
