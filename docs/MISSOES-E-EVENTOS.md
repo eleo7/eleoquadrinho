@@ -13,3 +13,15 @@ Obras locais e da nuvem contam, respeitando os acessos da conta. Não é obrigat
 As conquistas permanecem nas preferências da conta, inclusive após a mudança de semana. Histórico, perfil e conquistas anteriores são preservados. Não é necessária migração SQL. A contagem cosmética ocorre no cliente e não serve como validação antifraude para competições ou prêmios financeiros.
 
 A galeria permite buscar personagem/nome e filtrar itens desbloqueados, bloqueados ou de evento. Temas alteram as cores do sistema; os layouts existentes continuam disponíveis separadamente.
+
+## Molduras épicas e novidades
+
+Cinco novos estilos inspirados na referência visual: Titã Esmeralda, Tempestade Escarlate, Ceifador Glacial, Armadura Arcana e Guardião Celestial. As artes são vetoriais, com centro transparente, e aparecem tanto na galeria quanto no perfil equipado.
+
+- Desafio épico semanal: 30 minutos de leitura ativa e duas obras concluídas durante a semana. Cada obra exige ao menos um minuto no período e 95% de progresso. Os cinco estilos alternam semanalmente.
+- Desafio mensal: duas horas de leitura ativa e oito dias com pelo menos cinco minutos de leitura. São 12 edições com cores próprias, programadas de outubro de 2026 a setembro de 2027, repetindo o ciclo anualmente.
+- Conquistas permanecem na conta; o progresso do desafio reinicia no novo período, no horário de Brasília. Tempo anterior à implementação não é convertido retroativamente em progresso épico.
+
+O aviso de novidades aparece ao abrir a conta, com HQs/mangás publicados no catálogo e recompensas novas. Só considera conteúdo permitido e não oculto. Na primeira utilização apresenta o catálogo disponível, sem afirmar que obras antigas acabaram de ser publicadas. Nas seguintes compara os IDs com os já apresentados, sincronizados nas preferências da conta. Renomear uma obra não produz aviso novo. Arquivos privados de outro dispositivo nunca entram no aviso.
+
+Para publicar mais artes inéditas, acrescente opções/estilos em `js/epic-rewards.js` e suas artes em `js/reward-art.js`. A rotação automática usa a coleção programada; não gera ilustrações inéditas indefinidamente. Novos IDs de recompensa entram automaticamente no aviso após publicação (respeitando `release`, quando informada).

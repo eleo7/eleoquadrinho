@@ -2,6 +2,7 @@
 (function (root) {
   'use strict';
   const Seasons = typeof module !== 'undefined' && module.exports ? require('./reward-seasons') : root.EQRewardSeasons;
+  const Epic = typeof module !== 'undefined' && module.exports ? require('./epic-rewards') : root.EQEpicRewards;
   const GOALS = [5, 10, 20, 30, 60];
   const MISSIONS = [
     { id: 'first_minutes', title: 'Primeiros capítulos', metric: 'seconds', target: 300, reward: 'avatar:owl', label: 'Avatar Coruja', icon: '🦉' },
@@ -47,6 +48,7 @@
       MISSIONS.push({id:'hero_'+set.id+'_'+kind,title:set.hero+' · '+({frame:'Tempo de aventura',avatar:'Histórias completas',theme:'Hábito de herói'})[kind],metric,target:targets[kind],reward:kind+':hero_'+set.id,label:({frame:'Moldura',avatar:'Ícone',theme:'Tema'})[kind]+' '+set.label,icon:'✦'});
     }
   }
+  OPTIONS.frame.push(...Epic.OPTIONS);
   function event(state, day = dayKey()) {
     const week=weekStart(day), offset=Math.round((Date.parse(week+'T12:00:00Z')-Date.parse('2026-10-19T12:00:00Z'))/604800000);
     const set=Seasons.SETS[((offset%Seasons.SETS.length)+Seasons.SETS.length)%Seasons.SETS.length];
@@ -72,7 +74,7 @@
   const number = (n, max = 1e9) => Number.isFinite(n) ? Math.min(max, Math.max(0, Math.floor(n))) : 0;
   function normalize(input) {
     const x = input && typeof input === 'object' ? input : {};
-    const state = { version: 1, totalSeconds: number(x.totalSeconds), goal: GOALS.includes(x.goal) ? x.goal : 10, goalDays: number(x.goalDays), books: {}, days: {}, weeklyWins: {}, eventRewards: {}, eventProgress: null, appearance: {} };
+    const state = { version: 1, totalSeconds: number(x.totalSeconds), goal: GOALS.includes(x.goal) ? x.goal : 10, goalDays: number(x.goalDays), books: {}, days: {}, weeklyWins: {}, eventRewards: {}, eventProgress: null, epicProgress: Epic.normalize(x.epicProgress), appearance: {} };
     for (const [key, value] of Object.entries(x.books || {}).slice(0, 5000)) {
       if (!key.startsWith('work:') || key.length > 240 || !value || typeof value !== 'object') continue;
       state.books[key] = { seconds: number(value.seconds), progress: Math.min(1, Math.max(0, Number(value.progress) || 0)), completed: value.completed === true };
@@ -146,6 +148,8 @@
       // A previous completion cannot unlock an event: read again during its week.
       if(eventBook.seconds>=60&&Number(progress)>=.95)eventBook.completed=true;
     }
+    state.epicProgress=Epic.advance(state.epicProgress,{day,id,seconds:credit,progress});
+    for(const challenge of Epic.status(state.epicProgress,day))if(challenge.seconds>=challenge.target&&challenge.count>=challenge.countTarget)state.eventRewards['frame:'+challenge.option.id]=true;
     const earned=event(state,day), rewardId='event_'+earned.set.id;
     if(earned.seconds>=earned.minutesTarget*60)state.eventRewards['frame:'+rewardId]=true;
     if(earned.books>=earned.booksTarget)state.eventRewards['avatar:'+rewardId]=true;

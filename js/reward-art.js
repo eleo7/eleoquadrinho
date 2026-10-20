@@ -33,7 +33,27 @@
     const uid='eq-hero-'+(++sequence),color=exclusive?'#ffdf83':set.light;
     return `<svg class="reward-avatar-art hero-emblem" viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="${uid}"><stop stop-color="${set.dark}"/><stop offset="1" stop-color="#08090e"/></radialGradient></defs><rect width="100" height="100" rx="22" fill="url(#${uid})"/><circle cx="50" cy="50" r="45" fill="none" stroke="${color}" stroke-width="${exclusive?3:1}"/><g fill="${color}" style="color:${color}" stroke="${set.dark}" stroke-width="1.5">${symbols[set.symbol]}</g>${exclusive?'<path d="m50 2 3 5-3 5-3-5ZM8 46l4 4-4 4-4-4Zm84 0 4 4-4 4-4-4Z" fill="#fff0ba"/>':''}</svg>`;
   }
+  function epicFrame(option) {
+    const set=EQEpicRewards.STYLES.find(s=>s.id===option.style),uid='epic-'+(++sequence),light=option.monthly?['#ffe4a0','#ff8fbb','#a4f9ff','#bbadff','#ffa96e','#a8ffbe','#f9f39b','#97bfff','#ffb5eb','#c9fbf5','#ff8b75','#e3c9ff'][Number(option.id.split('_')[1])-1]:set.light,dark=set.dark;
+    const heads={
+      titan:'<path d="m40 17-10-9 5 20 10 7h30l10-7 5-20-10 9-7-5H47Z"/><path d="m44 24 9 4-4 6-7-4m34-6-9 4 4 6 7-4" fill="#c4ff53"/><path d="m49 37 11 7 11-7-3 11H52Z" fill="#112407"/><path d="m53 39 2 6 3-5 4 5 3-6" fill="white"/>',
+      storm:'<path d="m25 12 25 5 10-8 10 8 25-5-14 18H39Z"/><circle cx="60" cy="23" r="12"/><path d="m63 12-12 13h9l-4 12 14-18h-10Z" fill="#fff6a4"/>',
+      reaper:'<path d="M38 32 44 12 60 3 76 12 82 32 70 43H50Z"/><path d="m48 20 12-8 12 8-2 17-10 8-10-8Z" fill="#c1ebff"/><path d="m50 24 8 3-3 6-5-3m20-6-8 3 3 6 5-3m-9 8-4 5h7" fill="#092340"/><path d="M55 37v5m5-5v6m5-6v5" stroke="#092340"/>',
+      reactor:'<path d="M30 12h18l5 8h14l5-8h18l8 14-17 9-7-7H46l-7 7-17-9Z"/><path d="m52 18 16 0-8 15Z" fill="#a0ffff"/>',
+      guardian:'<path d="M10 50Q-4 3 35 16l25 4 25-4q39-13 25 34l-9 44-9 15 3-65-23-12H48L25 44l3 65-9-15Z" fill="#9d172e"/><path d="m60 8 16 7-2 20-14 10-14-10-2-20Z"/><path d="m60 14 10 5-2 12-8 7Z" fill="#72d8ff"/>'
+    };
+    const decorations={
+      titan:'<path d="M20 22 10 30 17 43 8 53 16 67 9 82 24 104m76-82 10 8-7 13 9 10-8 14 7 15-15 22" fill="none" stroke="#a2ee5c" stroke-width="3"/><path d="m5 42 10-5-2 12Zm109 28-10 5 2-12ZM22 96l8-7 6 12-10 6Z"/>',
+      storm:'<path d="m24 23-10 15 9-3-12 25 9-2-4 25 14 18m66-78 10 15-9-3 12 25-9-2 4 25-14 18" fill="none" stroke="#fff395" stroke-width="2.5"/>',
+      reaper:'<path d="M17 100 29 60l-3 35 21 14-19-5Zm86 0L91 60l3 35-21 14 19-5Z" fill="#b3efff"/><path d="m19 48 7-5-6 12 8-4m64-8 7 5-8 3 6 4" stroke="#8ce9ff" fill="none"/>',
+      reactor:'<circle cx="60" cy="104" r="12" fill="#12355e"/><circle cx="60" cy="104" r="8" fill="#65eaff"/><circle cx="60" cy="104" r="4" fill="white"/><path d="M18 35h8v16h-8m84-16h-8v16h8M18 70h8v16h-8m84-16h-8v16h8" fill="#edb34b"/>',
+      guardian:'<path d="m25 33 3 5 6 1-5 4 1 6-5-3-5 3 1-6-5-4 6-1Zm70 0 3 5 6 1-5 4 1 6-5-3-5 3 1-6-5-4 6-1Z" fill="#ffecb0"/><path d="m44 101 16 12 16-12-4-9H48Z" fill="#245ca3"/>'
+    };
+    return `<svg class="reward-frame-art epic-frame" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${uid}" x2=".8" y2="1"><stop stop-color="${light}"/><stop offset=".2" stop-color="${dark}"/><stop offset=".45" stop-color="${light}"/><stop offset=".65" stop-color="${dark}"/><stop offset="1" stop-color="${light}"/></linearGradient></defs><g fill="url(#${uid})" stroke="#09111d" stroke-width="1.7"><path d="M25 17h70l12 13v64l-14 16H27L13 94V30Zm6 12-8 8v51l10 12h54l10-12V37l-8-8Z" fill-rule="evenodd"/><path d="M30 28h60l9 10v51l-12 13H33L21 89V38Z" fill="none" stroke="${light}" stroke-width="2"/>${heads[set.id]}${decorations[set.id]}${option.monthly?'<path d="m38 105 8-7 7 8 7-13 7 13 7-8 8 7-6 10H44Z" fill="#ffda76"/>':''}</g></svg>`;
+  }
+
   function frame(id) {
+    const epic=EQEpicRewards.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
     const [dark,light,motif]=palettes[id]||palettes.default, uid='eq-frame-'+(++sequence);
     const ornaments={
       metal:'<path d="M12 5 26 10 22 23 9 25 5 12Z"/><path d="m10 11 8-1 3 7-9 4Z" fill="#102132"/><circle cx="14" cy="14" r="2" fill="white"/>',
