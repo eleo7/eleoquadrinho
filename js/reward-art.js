@@ -2,6 +2,7 @@
 (function(root) {
   'use strict';
   let sequence=0;
+  const Seasons=root.EQRewardSeasons;
   const palettes={
     default:['#8492a6','#d9e3f0','metal'],bronze:['#a65b32','#f4c598','metal'],silver:['#7a92b0','#eff8ff','metal'],
     steel:['#1473bd','#9aeaff','metal'],verdant:['#277b24','#b1f86b','leaf'],ice:['#168dcc','#beffff','ice'],gold:['#bd6b09','#ffe582','crown'],
@@ -10,6 +11,28 @@
     jade:['#078453','#9cfbc7','leaf'],cyborg:['#165bb5','#88dbff','circuit'],gamer:['#631adb','#35f6ed','circuit'],western:['#553225','#d6b38a','wood'],
     ruby:['#9b1737','#ffc07e','gem'],treasure:['#ae720a','#fff39a','treasure'],royal:['#25357c','#bfcaff','crown'],dragon_frame:['#a42712','#ffd18c','dragon']
   };
+  for(const set of Seasons.SETS) {
+    palettes['hero_'+set.id]=[set.dark,set.light,set.motif];
+    palettes['event_'+set.id]=[set.dark,'#ffe399',set.motif];
+  }
+  const symbols={
+    bolt:'<path d="M60 8 24 56h24L36 92l42-53H54Z"/><path d="m60 8-8 34h19L43 77l9-29H33Z" fill="#fff4bb"/>',
+    bat:'<path d="M9 27q13 12 23 10l10-15 4 14h8l4-14 10 15q10 2 23-10l-8 31q-13-7-21 5L50 83 38 63Q25 51 17 58Z"/><path d="m45 44 5 3 5-3" fill="none" stroke="#fff" stroke-width="2"/>',
+    web:'<path d="M50 12v76M12 50h76M23 23l54 54m0-54L23 77" fill="none" stroke="currentColor" stroke-width="3"/><path d="M24 24q26 8 52 0-8 26 0 52-26-8-52 0 8-26 0-52Z M36 36q14 4 28 0-4 14 0 28-14-4-28 0 4-14 0-28Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="m31 43 15 8-8 12-10-9Zm38 0-15 8 8 12 10-9Z" fill="white"/>',
+    shield:'<path d="M50 10 82 23v28Q79 77 50 91 21 77 18 51V23Z"/><path d="m50 25 6 15 17 1-13 11 4 17-14-9-14 9 4-17-13-11 17-1Z" fill="#fff4d1"/>',
+    reactor:'<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="7"/><path d="m21 29 58 0-29 49Z"/><path d="m35 38 30 0-15 27Z" fill="#e7ffff"/><path d="M50 8v10m0 64v10M8 50h10m64 0h10" stroke="currentColor" stroke-width="4"/>',
+    fist:'<path d="M22 48V29q5-11 13-2v-8q7-9 14 0 8-10 15 0 10-6 15 5v39L60 84H36L17 64 12 47q4-8 10 1Z"/><path d="M35 27v26m14-34v31m15-31v32M22 48l18 6 7 16" fill="none" stroke="#173b16" stroke-width="4"/>',
+    hammer:'<path d="m18 19 54-6 15 12-2 27-52 8-16-11Z"/><path d="m48 55 15-2-7 35-13 3Z" fill="#e9bd78"/><path d="m23 27 55-7-1 22-48 8Z" fill="#e4f6ff"/><path d="m17 65 12-4-5 14 13-5-19 23 4-16-12 3Z"/>',
+    panther:'<path d="m18 17 23 11h18l23-11-7 29 3 23-28 23-28-23 3-23Z"/><path d="m31 45 15 8-15 6Zm38 0-15 8 15 6Z" fill="#fff"/><path d="m42 69 8 9 8-9M50 29v25" fill="none" stroke="#eee0ff" stroke-width="3"/>',
+    eye:'<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="3"/><path d="m50 9 35 61H15Z" fill="none" stroke="currentColor" stroke-width="3"/><path d="M13 50q37-40 74 0-37 40-74 0Z"/><circle cx="50" cy="50" r="14" fill="#153b29"/><circle cx="50" cy="50" r="7" fill="#a9ff93"/>',
+    sun:'<path d="m50 3 8 20 20-13-3 24 23 8-22 13 11 22-25-3-12 23-12-23-25 3 11-22L2 42l23-8-3-24 20 13Z"/><circle cx="50" cy="49" r="23" fill="#ffeab0"/><path d="m50 29 14 20-14 20-14-20Z" fill="#e8a01b"/>',
+    spiral:'<path d="M77 67C46 98 12 70 24 38 34 10 79 18 78 48c-1 25-37 28-39 5-1-13 18-18 22-6" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><path d="m21 69-10 19 23-8" fill="none" stroke="currentColor" stroke-width="5"/>',
+    starball:'<circle cx="50" cy="50" r="34"/><path d="m50 23 7 17 19 1-15 12 5 19-16-11-16 11 5-19-15-12 19-1Z" fill="#dc3f24"/><path d="M25 40q4-15 18-18" fill="none" stroke="#fff7cd" stroke-width="5" stroke-linecap="round"/>'
+  };
+  function heroAvatar(set, exclusive) {
+    const uid='eq-hero-'+(++sequence),color=exclusive?'#ffdf83':set.light;
+    return `<svg class="reward-avatar-art hero-emblem" viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="${uid}"><stop stop-color="${set.dark}"/><stop offset="1" stop-color="#08090e"/></radialGradient></defs><rect width="100" height="100" rx="22" fill="url(#${uid})"/><circle cx="50" cy="50" r="45" fill="none" stroke="${color}" stroke-width="${exclusive?3:1}"/><g fill="${color}" style="color:${color}" stroke="${set.dark}" stroke-width="1.5">${symbols[set.symbol]}</g>${exclusive?'<path d="m50 2 3 5-3 5-3-5ZM8 46l4 4-4 4-4-4Zm84 0 4 4-4 4-4-4Z" fill="#fff0ba"/>':''}</svg>`;
+  }
   function frame(id) {
     const [dark,light,motif]=palettes[id]||palettes.default, uid='eq-frame-'+(++sequence);
     const ornaments={
@@ -34,6 +57,7 @@
     return `<svg class="reward-frame-art" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${uid}" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".28" stop-color="${dark}"/><stop offset=".52" stop-color="${light}"/><stop offset=".75" stop-color="${dark}"/><stop offset="1" stop-color="${light}"/></linearGradient></defs><path d="M22 13h76l9 9v76l-9 9H22l-9-9V22Z" fill="none" stroke="#05080e" stroke-width="11"/><path d="M22 13h76l9 9v76l-9 9H22l-9-9V22Z" fill="none" stroke="url(#${uid})" stroke-width="7"/><path d="M25 21h70l4 4v70l-4 4H25l-4-4V25Z" fill="none" stroke="${light}" stroke-opacity=".65"/><g fill="url(#${uid})" stroke="${dark}" stroke-width="1.1">${[0,90,180,270].map(angle=>`<g transform="rotate(${angle} 60 60) translate(5 5) scale(.77)">${ornament}</g>`).join('')}</g><path d="m60 7 6 7-6 8-6-8Z" fill="${light}" stroke="${dark}"/><path d="m60 99 4 6-4 6-4-6Z" fill="${light}"/></svg>`;
   }
   function avatar(id) {
+    const set=Seasons.find(id);if(set)return heroAvatar(set,id.startsWith('event_'));
     const config={sentinel:['#27a8d7','#09243c'],ranger:['#7bd985','#133f32'],astronaut:['#b6caff','#20284f'],mage:['#c78cff','#381959'],cybercat:['#69f8e8','#30217b'],phoenix:['#ffbe51','#6c1c33']}[id]||['#27a8d7','#09243c'];
     const [light,dark]=config;
     const faces={
@@ -45,6 +69,13 @@
       phoenix:'<path d="M50 87C19 77 10 48 14 23l28 27-8-38 20 21L76 8l-9 41 21-23c5 31-7 48-38 61Z"/><path d="M50 75 36 53l17-20 12 15-10 4Z" fill="#fff0a1"/><path d="m54 40 4 3-5 2Z" fill="#4a1830"/>'
     };
     return `<svg class="reward-avatar-art" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="22" fill="${dark}"/><circle cx="50" cy="50" r="43" fill="none" stroke="${light}" opacity=".25"/><g fill="${light}" stroke="${dark}" stroke-width="1.5">${faces[id]||faces.sentinel}</g></svg>`;
+  }
+  if(root.document) {
+    const style=document.createElement('style');style.id='character-reward-themes';
+    style.textContent=Seasons.SETS.flatMap(set=>['hero_','event_'].map(prefix=>{
+      const id=prefix+set.id, accent=prefix==='event_'?'#ffdf83':set.light;
+      return `:root[data-site-theme="${id}"]{--bg:color-mix(in srgb,${set.dark} 20%,#050609);--bg2:color-mix(in srgb,${set.dark} 32%,#0b0d14);--card:color-mix(in srgb,${set.dark} 42%,#11141c);--card2:color-mix(in srgb,${set.dark} 52%,#151a25);--borda:color-mix(in srgb,${set.light} 30%,#242633);--txt:#fff8ef;--txt2:#c4c5d3;--acento:${accent};--acento2:${set.light}}:root[data-site-theme="${id}"] body{background-image:radial-gradient(ellipse at top right,${set.dark}44,transparent 65%)}[data-preview-theme="${id}"]{--preview-bg:${set.dark};--preview-accent:${accent}}`;
+    })).join('');document.head.append(style);
   }
   root.EQRewardArt={frame,avatar};
 })(globalThis);

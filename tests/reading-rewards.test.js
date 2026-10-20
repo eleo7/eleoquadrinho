@@ -87,3 +87,46 @@ test('all frame thresholds unlock automatically without spending XP', () => {
   assert.equal(R.xp(s),before);
   assert.ok(!R.available(R.normalize(),'frame','dragon_frame'));
 });
+
+test('hero events rotate on Mondays and return after twelve weeks', () => {
+  const s=R.normalize();
+  assert.equal(R.event(s,'2026-10-25').set.id,'flash');
+  assert.equal(R.event(s,'2026-10-26').set.id,'batman');
+  assert.equal(R.event(s,'2027-01-11').set.id,'flash');
+  assert.equal(R.MISSIONS.length,45);
+  assert.equal(Object.values(R.OPTIONS).flat().filter(o=>o.set).length,72);
+});
+test('event rewards require this week reading and persist across rotation and serialization', () => {
+  let s=read(null,600,'old','2026-10-18');
+  s=read(s,15,'old','2026-10-19',.1);
+  assert.equal(R.event(s,'2026-10-19').books,0);
+  s=read(s,885,'old','2026-10-19');
+  assert.equal(R.event(s,'2026-10-19').books,1);
+  assert.ok(!R.available(s,'avatar','event_flash'));
+  s=read(s,300,'second','2026-10-20');
+  for(const kind of ['frame','avatar','theme']) {
+    assert.ok(R.available(s,kind,'event_flash'));
+    s=R.equip(s,kind,'event_flash');
+  }
+  const before=Object.keys(s.eventRewards).length;
+  s=read(s,60,'second','2026-10-20');
+  assert.equal(Object.keys(s.eventRewards).length,before);
+  s=read(s,15,'old','2026-10-26');
+  assert.equal(R.event(s,'2026-10-26').seconds,15);
+  assert.equal(R.event(s,'2026-10-26').books,0);
+  s=R.normalize(JSON.parse(JSON.stringify(s)));
+  assert.equal(R.appearance(s).theme,'event_flash');
+  assert.ok(!R.available(s,'theme','event_batman'));
+  assert.deepEqual(R.normalize({eventRewards:{'theme:unknown':true}}).eventRewards,{});
+});
+test('event theme needs multiple active days even after time and books objectives', () => {
+  let s=read(null,1140,'one','2026-10-19');
+  s=read(s,60,'two','2026-10-19');
+  assert.ok(R.available(s,'frame','event_flash'));
+  assert.ok(R.available(s,'avatar','event_flash'));
+  assert.ok(!R.available(s,'theme','event_flash'));
+  s=read(s,285,'two','2026-10-20');
+  assert.ok(!R.available(s,'theme','event_flash'));
+  s=read(s,15,'two','2026-10-20');
+  assert.ok(R.available(s,'theme','event_flash'));
+});

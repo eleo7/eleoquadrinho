@@ -3144,7 +3144,7 @@
   function guardarRecompensas(next) {
     const beforeState = estadoRecompensas();
     const before = EQReadingRewards.missions(beforeState).filter(m => m.unlocked).map(m => m.id);
-    const newlyEarned = Object.entries(EQReadingRewards.OPTIONS).flatMap(([kind, options]) => options.filter(o => o.xp !== undefined && !EQReadingRewards.available(beforeState, kind, o.id) && EQReadingRewards.available(next, kind, o.id)).map(o => o.label));
+    const newlyEarned = Object.entries(EQReadingRewards.OPTIONS).flatMap(([kind, options]) => options.filter(o => (o.xp !== undefined || o.event) && !EQReadingRewards.available(beforeState, kind, o.id) && EQReadingRewards.available(next, kind, o.id)).map(o => o.label));
     prefs.readingRewards = next;
     salvarPrefs(); aplicarRecompensas();
     const unlocked = EQReadingRewards.missions(next).filter(m => m.unlocked && !before.includes(m.id));
@@ -3170,10 +3170,19 @@
   let rewardTab = 'frame';
   const rewardNumber = n => n.toLocaleString('pt-BR');
   function previaRecompensa(kind, option) {
-    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar('sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
+    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
     if (kind === 'avatar') return `<span class="reward-art-preview avatar-preview">${option.art ? EQRewardArt.avatar(option.id) : `<span class="reward-emoji">${option.icon}</span>`}</span>`;
-    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em></span>`;
+    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set ? EQRewardArt.avatar(option.id) : ''}</span>`;
     return `<span class="layout-preview" data-preview-layout="${option.id}"><i></i><span>${Array.from({length:6},()=>'<b></b>').join('')}</span></span>`;
+  }
+  function painelEvento(state) {
+    const event=EQReadingRewards.event(state),set=event.set,id='event_'+set.id;
+    const goals=[['frame',event.seconds,event.minutesTarget*60,`Leia ${event.minutesTarget} minutos nesta semana`,`${Math.floor(event.seconds/60)} / ${event.minutesTarget} min`],['avatar',event.books,event.booksTarget,`Conclua ${event.booksTarget} obras nesta semana`,`${event.books} / ${event.booksTarget} obras`],['theme',event.days,event.daysTarget,`Cumpra os dois objetivos e leia em ${event.daysTarget} dias`,`${event.days} / ${event.daysTarget} dias · 5 min por dia`]];
+    const next=Array.from({length:3},(_,i)=>EQRewardSeasons.SETS[(set.index+i+1)%EQRewardSeasons.SETS.length]);
+    return `<section class="hero-event" style="--event-dark:${set.dark};--event-light:${set.light}" aria-label="Evento da semana"><div class="hero-event-identity"><span class="hero-event-tag">EVENTO DA SEMANA</span><p>${esc(set.hero)}</p><h3>${esc(set.title)}</h3><div class="hero-event-art">${EQRewardArt.avatar(id)}${EQRewardArt.frame(id)}</div><strong>${esc(set.label)} · Edição de evento</strong><p>Um ícone, uma moldura e um tema para sua coleção.</p><small>Até domingo, ${event.end.slice(8)}/${event.end.slice(5,7)}, às 23h59 · Brasília</small></div><div class="hero-event-objectives"><h4>Leia e conquiste o conjunto</h4>${goals.map(([kind,value,max,title,progress])=>{
+      const won=EQReadingRewards.available(state,kind,id);
+      return `<article class="event-objective ${won?'earned':''}"><div><strong>${won?'✓ ':''}${esc(title)}</strong><span>${({frame:'Moldura',avatar:'Ícone',theme:'Tema'})[kind]} ${won?(kind==='frame'?'conquistada':'conquistado'):(kind==='frame'?'exclusiva do evento':'exclusivo do evento')}</span></div><progress value="${won?max:Math.min(value,max)}" max="${max}" aria-label="${esc(title)}"></progress><small>${won?'Recompensa já está na sua coleção':esc(progress)}</small></article>`;
+    }).join('')}<button class="btn btn-pri" data-quest-read>Ler para progredir</button><details><summary>Regras e próximos eventos</summary><p>Vale qualquer obra permitida na sua conta, inclusive arquivos locais. O personagem inspira o visual; não é obrigatório ter HQs dele. Uma conclusão exige 1 minuto de leitura ativa na obra durante a semana e 95% de progresso. Releituras contam uma vez por obra no evento.</p><p>As metas reiniciam às segundas-feiras. Recompensas conquistadas permanecem na conta. Os 12 conjuntos retornam a cada 12 semanas; novas leituras são necessárias a cada evento.</p><p>Próximas semanas: ${next.map(s=>esc(s.hero)).join(' → ')}.</p></details></div></section>`;
   }
   function painelMissoes() {
     const state = estadoRecompensas(), stats = EQReadingRewards.metrics(state), day = state.days[EQReadingRewards.dayKey()];
@@ -3182,19 +3191,22 @@
     const names = {frame:'Molduras',avatar:'Avatares',theme:'Temas',layout:'Layouts'};
     return `<section class="missoes-painel" aria-labelledby="tituloMissoes">
       <div class="rewards-heading"><div><small>SUA JORNADA ENTRE PÁGINAS</small><h3 id="tituloMissoes">Leia. Conquiste. Personalize.</h3><p class="missoes-resumo">${Math.floor(stats.seconds / 60)} min de leitura · ${stats.completed} obras concluídas · ${stats.days} metas cumpridas</p></div><div class="xp-balance"><small>NÍVEL ${1+Math.floor(xp/1000)}</small><strong>${rewardNumber(xp)} <span>XP</span></strong><progress value="${xp%1000}" max="1000" aria-label="Progresso até o próximo nível"></progress><small>${rewardNumber(1000-xp%1000)} XP para o próximo nível</small></div></div>
+      ${painelEvento(state)}
       <div class="quest-columns">
         <article class="quest-banner quest-gold"><span class="quest-badge">CAÇADA DA SEMANA</span><div class="quest-content"><div class="quest-emblem">${EQRewardArt.avatar('phoenix')}${EQRewardArt.frame('gold')}</div><div><h4>${week.done ? 'Uma semana de conquistas!' : 'Uma hora, muitas aventuras'}</h4><p>Some 60 minutos de leitura ativa nesta semana.</p><progress value="${Math.min(week.seconds,week.target)}" max="${week.target}" aria-label="Progresso da caçada semanal"></progress><div class="quest-progress"><span>${Math.floor(week.seconds/60)} de 60 min</span><strong>${week.done ? '✓ +300 XP recebidos' : '+300 XP ao concluir'}</strong></div><small>Até domingo, ${week.end.slice(8)}/${week.end.slice(5,7)}, às 23h59 · Brasília</small><div class="quest-actions"><button class="btn btn-pri" data-quest-read>Continuar lendo</button><details><summary>ⓘ Ver regras</summary><p>Leia nos leitores internos. O tempo da semana soma entre as obras. O bônus é automático, uma vez por semana, e permanece com você.</p></details></div></div></div></article>
         <div class="meta-leitura quest-banner quest-green"><span class="quest-badge">SEU OBJETIVO DIÁRIO</span><div><h4>${day?.done ? '✓ Meta de hoje cumprida!' : 'Um capítulo de cada vez'}</h4><p>${Math.floor(minutes)} de ${goal} minutos de leitura ativa</p><progress value="${Math.min(minutes, goal)}" max="${goal}" aria-label="Progresso da meta diária"></progress><div class="quest-progress"><span>${day?.done ? 'Volte amanhã para uma nova meta' : 'Leia hoje para conquistar seu bônus'}</span><strong>${day?.done ? '✓ +50 XP recebidos' : '+50 XP ao concluir'}</strong></div></div><label>Meta diária<select id="metaLeituraMinutos">${EQReadingRewards.GOALS.map(n => `<option value="${n}" ${state.goal === n ? 'selected' : ''}>${n} minutos</option>`).join('')}</select></label>${day?.done && day.goal!==state.goal ? '<small>A nova meta vale a partir de amanhã.</small>' : ''}</div>
       </div>
       <details class="reward-rules"><summary>Como ganhar XP e concluir missões</summary><p>10 XP por minuto de leitura ativa, 100 XP por obra concluída pela primeira vez, 50 XP por meta diária e 300 XP pela caçada semanal. Seu XP é acumulado: desbloquear ou equipar não gasta pontos.</p><p>O tempo conta nos leitores internos, com a aba visível e em uso; pausa após 90 segundos sem interação. Uma conclusão exige pelo menos 1 minuto na obra e 95% de progresso. Links externos não contam. Metas e semanas seguem o horário de Brasília.</p><p>A leitura já registrada nas missões vale para o XP. Histórico, conquistas antigas e escolhas continuam preservados. Importar uma HQ ou limpar o histórico não concede XP extra.</p></details>
       <div class="reward-collection-heading"><div><small>SUAS RECOMPENSAS</small><h3>Monte sua identidade</h3></div><span>Desbloqueio automático · Sem gastar XP</span></div>
+      <div class="reward-filters"><label>Buscar recompensa<input id="rewardSearch" type="search" placeholder="Personagem ou nome da recompensa"></label><label>Mostrar<select id="rewardFilter"><option value="all">Todas</option><option value="earned">Desbloqueadas</option><option value="locked">Bloqueadas</option><option value="event">Edições de evento</option></select></label></div>
       <div class="reward-tabs" role="tablist" aria-label="Coleção de recompensas">${Object.entries(names).map(([kind,name])=>`<button id="reward-tab-${kind}" role="tab" data-reward-tab="${kind}" aria-controls="reward-panel-${kind}" aria-selected="${rewardTab===kind}" tabindex="${rewardTab===kind?0:-1}">${name} <span>${EQReadingRewards.OPTIONS[kind].filter(o=>EQReadingRewards.available(state,kind,o.id)).length}/${EQReadingRewards.OPTIONS[kind].length}</span></button>`).join('')}</div>
       ${Object.entries(names).map(([kind,name])=>`<div class="reward-collection" id="reward-panel-${kind}" role="tabpanel" aria-labelledby="reward-tab-${kind}" ${rewardTab===kind?'':'hidden'}>${EQReadingRewards.OPTIONS[kind].map(o=>{
         const unlocked=EQReadingRewards.available(state,kind,o.id), equipped=selected[kind]===o.id;
         const mission=EQReadingRewards.MISSIONS.find(m=>m.reward===kind+':'+o.id);
-        const requirement=o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
-        return `<button type="button" class="reward-card ${equipped?'equipped':''} ${unlocked?'':'locked'}" data-reward-kind="${kind}" data-reward-id="${o.id}" aria-pressed="${equipped}" ${unlocked?'':'disabled'} title="${esc(unlocked?'Equipar '+o.label:requirement)}"><span class="reward-card-state" aria-hidden="true">${equipped?'✓':unlocked?'':'🔒'}</span>${previaRecompensa(kind,o)}<strong>${esc(o.label)}</strong><span class="reward-card-cost">${equipped?'Equipado':unlocked?'Disponível · Equipar':esc(requirement)}</span></button>`;
+        const requirement=o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
+        return `<button type="button" class="reward-card ${equipped?'equipped':''} ${unlocked?'':'locked'}" data-reward-kind="${kind}" data-reward-id="${o.id}" data-reward-event="${!!o.event}" data-reward-earned="${unlocked}" data-reward-name="${esc(o.label)}" aria-pressed="${equipped}" ${unlocked?'':'disabled'} title="${esc(unlocked?'Equipar '+o.label:requirement)}"><span class="reward-card-state" aria-hidden="true">${equipped?'✓':unlocked?'':'🔒'}</span>${previaRecompensa(kind,o)}<strong>${esc(o.label)}</strong><span class="reward-card-cost">${equipped?'Equipado':unlocked?'Disponível · Equipar':esc(requirement)}</span></button>`;
       }).join('')}</div>`).join('')}
+      <p id="rewardFilterStatus" role="status"></p>
       <p class="missoes-ajuda">Moldura e avatar aparecem no perfil e no menu. Os layouts mudam a biblioteca e os salvos. Os temas do site não alteram o papel do leitor. Suas escolhas acompanham sua conta.</p>
       <details class="permanent-missions"><summary>Missões permanentes <span>${EQReadingRewards.missions(state).filter(m=>m.unlocked).length}/${EQReadingRewards.MISSIONS.length} concluídas</span></summary><div class="missoes-grade">${EQReadingRewards.missions(state).map(m => {
         const unit = m.metric === 'seconds' ? 'min' : m.metric === 'completed' ? 'obras' : 'dias';
@@ -3206,10 +3218,20 @@
   }
   function configurarMissoes() {
     $('#metaLeituraMinutos').onchange = e => { guardarRecompensas(EQReadingRewards.setGoal(estadoRecompensas(), Number(e.target.value), EQReadingRewards.dayKey())); renderPerfil(); };
+    function filterRewards() {
+      const query=norm($('#rewardSearch').value),filter=$('#rewardFilter').value;
+      $$('[data-reward-name]').forEach(card=>{
+        card.hidden=!norm(card.dataset.rewardName).includes(query)||(filter==='earned'&&card.dataset.rewardEarned!=='true')||(filter==='locked'&&card.dataset.rewardEarned==='true')||(filter==='event'&&card.dataset.rewardEvent!=='true');
+      });
+      const count=$$(`#reward-panel-${rewardTab} [data-reward-name]`).filter(c=>!c.hidden).length;
+      $('#rewardFilterStatus').textContent=count?`${count} recompensa(s) nesta categoria.`:'Nenhuma recompensa corresponde ao filtro.';
+    }
+    $('#rewardSearch').oninput=filterRewards;$('#rewardFilter').onchange=filterRewards;
     const tabs = $$('[data-reward-tab]');
     function selectTab(kind) {
       rewardTab = kind;
       tabs.forEach(tab => { const active=tab.dataset.rewardTab===kind; tab.setAttribute('aria-selected',String(active)); tab.tabIndex=active?0:-1; $('#reward-panel-'+tab.dataset.rewardTab).hidden=!active; });
+      filterRewards();
     }
     tabs.forEach((tab,index) => {
       tab.onclick=()=>selectTab(tab.dataset.rewardTab);
@@ -3221,12 +3243,13 @@
         catch (error) { toast(error.message); }
       };
     });
-    $('[data-quest-read]').onclick=()=>{
+    $$('[data-quest-read]').forEach(button=>button.onclick=()=>{
       const candidates=[...REG.values()].filter(it=>conteudoPermitido(it) && (['local','hq','conto','interativa'].includes(it.tipo) || (it.tipo==='ext-hq' && (it.textoLore || it.paginas?.length))));
       const reading=historico.find(h=>h.prog<.95 && candidates.some(it=>it.id===h.id));
       const item=candidates.find(it=>it.id===reading?.id) || candidates.find(it=>!estadoRecompensas().books['work:'+(it.readingKey||it.id)]?.completed) || candidates[0];
       if (item) abrirLeitura(item.id); else toast('Adicione uma HQ permitida à sua biblioteca para começar a missão.');
-    };
+    });
+    filterRewards();
   }
 
   /* ---------------- Perfil do Usuário & Conquistas ---------------- */
