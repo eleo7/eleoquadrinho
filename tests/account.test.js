@@ -260,3 +260,19 @@ test('admin can edit content profile without changing role, password or auth ide
   const r=await call('users','PATCH',{id,nome:'New name',bio:'New bio',access:{mode:'alternative',universes:['marvel','dc'],categories:['hq']}});
   assert.equal(r.status,200);assert.deepEqual(Object.keys(written),['app_metadata']);assert.equal(written.app_metadata.provider,'email');assert.equal(r.body.user.role,'reader');
 });
+test('community uses authenticated actor and rejects cross-account and unauthenticated requests', async () => {
+  backend({'/rest/v1/rpc/community_action': options => {
+    const body=JSON.parse(options.body);assert.equal(body.actor,'reader-id');assert.equal(body.operation,'friends');return Response.json([]);
+  }});
+  const result=await call('community','POST',{operation:'friends',actor:'forged-admin',payload:{actor:'forged-admin'}});
+  assert.equal(result.status,200);assert.deepEqual(result.body,{data:[]});
+  assert.equal((await call('community','POST',{operation:'friends'},{},'another-account')).status,403);
+  assert.equal((await call('community','POST',{operation:'friends'},{cookie:''})).status,401);
+  assert.equal((await call('community','GET')).status,405);
+  assert.equal((await call('community','POST',{operation:'grant-admin'})).status,400);
+});
+test('community activation error is actionable without exposing database internals', async () => {
+  backend({'/rest/v1/rpc/community_action':()=>Response.json({code:'PGRST202',message:'internal secret detail'}, {status:404})});
+  const result=await call('community','POST',{operation:'friends'});
+  assert.equal(result.status,503);assert.match(result.body.error,/community.sql/);assert.ok(!result.body.error.includes('internal'));
+});

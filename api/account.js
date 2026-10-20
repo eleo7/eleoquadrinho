@@ -1,5 +1,6 @@
 'use strict';
 const Access = require('../js/content-access');
+const { communityAction } = require('../server/community');
 const { usersAction } = require('../server/user-admin');
 const { uploadCover, readCover } = require('../server/covers');
 const { comicsAction } = require('../server/comics');
@@ -114,9 +115,10 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, revoked });
     }
     const identity = await authenticate(req, res);
-    if (['users', 'state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
+    if (['community', 'users', 'state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
     const row = await profile(identity.id);
     row.access = Access.normalize(identity.app_metadata?.content_access);
+    if (action === 'community') return res.status(200).json(await communityAction(req.method, body, row));
     if (action === 'users') return res.status(200).json(await usersAction(req.method, body, row, req.query));
     if (action === 'cover-upload' && req.method === 'POST') return res.status(200).json(await uploadCover(body, row));
     if (action === 'cover-read' && req.method === 'GET') {

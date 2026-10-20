@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5b301" />
-  <link rel="stylesheet" href="css/style.css?v=mobile-gestures-20261019-22" />
+  <link rel="stylesheet" href="css/style.css?v=community-20261019-23" />
 </head>
 <body>
   <header class="topo">
@@ -45,6 +45,7 @@
     <section class="aba" id="aba-salvos"></section>
     <section class="aba" id="aba-colecao"></section>
     <section class="aba" id="aba-perfil"></section>
+    <section class="aba" id="aba-comunidade"></section>
   </main>
 
   <nav class="nav-inferior">
@@ -53,6 +54,7 @@
     <button data-ir="historico"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 00-9 9H1l4 4 4-4H6a7 7 0 112 4.9l-1.4 1.4A9 9 0 1013 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></svg><span>Histórico</span></button>
     <button data-ir="biblioteca"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zm7-3l6-6-1.4-1.4L13 13.2V3h-2v10.2L7.4 9.6 6 11z"/></svg><span>Biblioteca</span></button>
     <button data-ir="salvos"><svg viewBox="0 0 24 24"><path d="M6 2h12a1 1 0 011 1v19l-7-4-7 4V3a1 1 0 011-1z"/></svg><span>Salvos</span></button>
+    <button data-ir="comunidade"><svg viewBox="0 0 24 24"><path d="M3 3h18v14H8l-5 4V3zm3 4v2h12V7H6zm0 5v2h8v-2H6z"/></svg><span>Comunidade</span></button>
     <button data-ir="perfil"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Perfil</span></button>
   </nav>
 
@@ -158,21 +160,22 @@
 
   <div id="toast"></div>
 
-  <script src="js/jszip.min.js?v=mobile-gestures-20261019-22"></script>
+  <script src="js/jszip.min.js?v=community-20261019-23"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="js/data.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/fontes.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/account-client.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/hq-package.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/reading-rewards.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/content-access.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/user-access-ui.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/cbr-import.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/reward-art.js?v=mobile-gestures-20261019-22"></script>
-  <script src="js/app.js?v=mobile-gestures-20261019-22"></script>
+  <script src="js/data.js?v=community-20261019-23"></script>
+  <script src="js/fontes.js?v=community-20261019-23"></script>
+  <script src="js/account-client.js?v=community-20261019-23"></script>
+  <script src="js/hq-package.js?v=community-20261019-23"></script>
+  <script src="js/reading-rewards.js?v=community-20261019-23"></script>
+  <script src="js/content-access.js?v=community-20261019-23"></script>
+  <script src="js/user-access-ui.js?v=community-20261019-23"></script>
+  <script src="js/cbr-import.js?v=community-20261019-23"></script>
+  <script src="js/reward-art.js?v=community-20261019-23"></script>
+  <script src="js/community.js?v=community-20261019-23"></script>
+  <script src="js/app.js?v=community-20261019-23"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js?v=mobile-gestures-20261019-22', { updateViaCache: 'none' }).catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=community-20261019-23', { updateViaCache: 'none' }).catch(() => {});
     }
   </script>
 </body>

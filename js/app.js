@@ -603,16 +603,22 @@
 
   /* ---------------- Navegação ---------------- */
   let abaAtual = 'inicio';
+  let fecharComunidade = null;
+  function renderComunidade() {
+    if (!Auth.usuario) return;
+    fecharComunidade = EQCommunity.mount($('#aba-comunidade'), { user: Auth.usuario, api: EQAccount.api });
+  }
   function ir(aba) { location.hash = aba; }
   function rota() {
+    if (fecharComunidade) { fecharComunidade(); fecharComunidade = null; }
     const h = decodeURIComponent(location.hash.slice(1)) || 'inicio';
     const [aba, arg] = h.split('/');
-    const alvo = ['inicio', 'busca', 'historico', 'biblioteca', 'salvos', 'colecao', 'perfil'].includes(aba) ? aba : 'inicio';
+    const alvo = ['inicio', 'busca', 'historico', 'biblioteca', 'salvos', 'colecao', 'perfil', 'comunidade'].includes(aba) ? aba : 'inicio';
     abaAtual = alvo;
     $$('.aba').forEach(a => a.classList.toggle('ativa', a.id === 'aba-' + alvo));
     $$('.nav-inferior button').forEach(b => b.classList.toggle('ativo', b.dataset.ir === alvo));
     window.scrollTo({ top: 0 });
-    ({ inicio: renderInicio, busca: renderBusca, historico: renderHistorico, biblioteca: renderBiblioteca, salvos: renderSalvos, perfil: renderPerfil, colecao: () => renderColecao(arg) })[alvo]();
+    ({ comunidade: renderComunidade, inicio: renderInicio, busca: renderBusca, historico: renderHistorico, biblioteca: renderBiblioteca, salvos: renderSalvos, perfil: renderPerfil, colecao: () => renderColecao(arg) })[alvo]();
   }
   window.addEventListener('hashchange', rota);
 

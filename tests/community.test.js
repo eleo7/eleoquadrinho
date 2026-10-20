@@ -1,0 +1,35 @@
+'use strict';
+const { test }=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const {PGlite}=require('@electric-sql/pglite');
+test('community database: consent, private isolation, blocks, moderation, rate limits and migration replay',async()=>{
+ const db=new PGlite();
+ try{
+  await db.exec("create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb,raw_app_meta_data jsonb default '{}');");
+  await db.exec(fs.readFileSync('supabase/schema.sql','utf8'));
+  const migration=fs.readFileSync('supabase/community.sql','utf8');await db.exec(migration);await db.exec(migration);
+  const a='00000000-0000-4000-8000-000000000001', b='00000000-0000-4000-8000-000000000002', c='00000000-0000-4000-8000-000000000003', admin='00000000-0000-4000-8000-000000000004';
+  for(const [id,login] of [[a,'alice'],[b,'bob'],[c,'carol'],[admin,'eleo7']])await db.query('insert into auth.users(id,email,raw_user_meta_data,raw_app_meta_data)values($1,$2,$3,$4)',[id,login+'@example.com',{login,nome:login},{role:id===admin?'admin':'reader'}]);
+  const rpc=async(actor,operation,payload={})=>(await db.query('select community_action($1,$2,$3) as data',[actor,operation,payload])).rows[0].data;
+  await db.exec('set role authenticated');await assert.rejects(rpc(a,'friends'),/permission denied/);await assert.rejects(db.query('select * from community_messages'),/permission denied/);await db.exec('reset role;set role service_role');
+  assert.deepEqual(await rpc(a,'friends'),[]);
+  const people=await rpc(a,'people',{query:'bob'});assert.equal(people[0].id,b);assert.equal(people[0].email,undefined);assert.equal(people[0].role,undefined);
+  await assert.rejects(rpc(a,'send',{channel:'private',target:b,text:'No consent'}),/friendship/);
+  await rpc(a,'request',{target:b});await assert.rejects(rpc(a,'accept',{target:b}),/Recipient/);await assert.rejects(rpc(c,'accept',{target:a}),/Recipient/);
+  await rpc(b,'accept',{target:a});assert.equal((await rpc(a,'friends'))[0].status,'accepted');
+  const privateMessage=await rpc(a,'send',{channel:'private',target:b,text:'A private hello'});
+  assert.equal((await rpc(b,'feed',{channel:'private',target:a}))[0].body,'A private hello');
+  await assert.rejects(rpc(c,'feed',{channel:'private',target:a}),/friendship/);await assert.rejects(rpc(admin,'feed',{channel:'private',target:a}),/friendship/);
+  assert.deepEqual(await rpc(c,'feed',{channel:'general'}),[]);
+  await assert.rejects(rpc(a,'send',{text:'too fast'}),/Wait/);
+  await assert.rejects(rpc(admin,'delete',{id:privateMessage.id}),/Not allowed/);
+  await rpc(b,'block',{target:a});await assert.rejects(rpc(a,'feed',{channel:'private',target:b}),/friendship/);await assert.rejects(rpc(a,'remove',{target:b}),/Block owner/);await assert.rejects(rpc(a,'unblock',{target:b}),/Block owner/);assert.deepEqual(await rpc(a,'people',{query:'bob'}),[]);
+  await rpc(b,'unblock',{target:a});await assert.rejects(rpc(a,'send',{channel:'private',target:b,text:'Still no consent'}),/friendship/);
+  const idea=await rpc(c,'send',{channel:'suggestions',text:'Melhorar a busca'});
+  await assert.rejects(rpc(b,'status',{id:idea.id,status:'done'}),/Admin/);
+  await rpc(admin,'status',{id:idea.id,status:'planned'});assert.equal((await rpc(b,'feed',{channel:'suggestions'}))[0].status,'planned');
+  await assert.rejects(rpc(b,'delete',{id:idea.id}),/Not allowed/);await rpc(admin,'delete',{id:idea.id});assert.deepEqual(await rpc(b,'feed',{channel:'suggestions'}),[]);
+  await db.exec('reset role');
+  for(let n=0;n<55;n++)await db.query("insert into community_messages(sender,channel,body)values($1,'general',$2)",[a,'message'+n]);
+  await db.exec('set role service_role');const latest=await rpc(b,'feed',{channel:'general'});assert.equal(latest.length,50);const older=await rpc(b,'feed',{channel:'general',before:latest[0].id});assert.equal(older.length,5);assert.ok(!older.some(x=>latest.some(y=>x.id===y.id)));
+  await rpc(b,'block',{target:a});assert.deepEqual(await rpc(b,'feed',{channel:'general'}),[]);
+ }finally{await db.close();}
+});

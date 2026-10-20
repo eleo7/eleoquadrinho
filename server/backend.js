@@ -30,7 +30,9 @@ async function request(path, { method = 'GET', body, token, admin = false, prefe
     // Never return provider payloads, keys or account existence details to clients.
     if (response.status === 429) throw new HttpError(429, 'Muitas tentativas. Aguarde antes de tentar novamente.');
     if (response.status >= 500) throw new HttpError(503, 'Serviço de contas indisponível.');
-    throw new HttpError(response.status === 401 || response.status === 403 ? 401 : 400, 'Não foi possível concluir a operação. Confira os dados informados.');
+    const error = new HttpError(response.status === 401 || response.status === 403 ? 401 : 400, 'Não foi possível concluir a operação. Confira os dados informados.');
+    error.providerCode = data?.code; error.providerMessage = data?.message;
+    throw error;
   }
   return data;
 }

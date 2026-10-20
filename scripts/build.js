@@ -8,6 +8,7 @@ fs.mkdirSync(out);
 for (const entry of ['index.html', 'manifest.json', 'sw.js', 'js', 'css', 'assets']) {
   fs.cpSync(path.join(root, entry), path.join(out, entry), { recursive: true });
 }
+fs.copyFileSync(path.join(root, 'supabase/community.sql'), path.join(out, 'assets/community.sql'));
 console.log('Site gerado em dist; configurações e código de servidor não são publicados como arquivos estáticos.');
 
 fs.copyFileSync(path.join(root, 'node_modules/jszip/dist/jszip.min.js'), path.join(out, 'js/jszip.min.js'));
