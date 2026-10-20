@@ -96,6 +96,7 @@
       this.carregarDadosPerfil();
       drive = catalog.data.drive || []; externas = catalog.data.externas || [];
       herois = catalog.data.herois || []; series = catalog.data.series || [];
+      atualizarUniversos();
       [...drive, ...externas, ...herois, ...series].forEach(reg);
       Object.assign(prefs, reader.data.prefs || {});
       rewardSession = { id: null, at: performance.now(), activity: performance.now(), account: user.id };
@@ -708,7 +709,7 @@
      → Subpastas de Coleção/Série → Volumes (#1..#N)
      ========================================================= */
   const COLS_LOL = ['hqs-lol', 'cronicas-lol', 'lol', 'runeterra', 'lor'];
-  const UNIVERSOS = (() => {
+  const UNIVERSOS_BASE = (() => {
     const imgIA = (c) => HQS_ACERVO[c]?.[0] ? `https://archive.org/services/img/${HQS_ACERVO[c][0].ident}` : '';
     const lista = [{
       id: 'u-lol', nome: 'League of Legends', sub: 'Runeterra · Campeões, Crônicas, HQs oficiais e Regiões',
@@ -721,6 +722,46 @@
     }));
     return lista;
   })();
+  let UNIVERSOS = [];
+  function estruturaUniversos() { return catalogSync?.data.universes || EQUniverseTree.defaults(UNIVERSOS_BASE); }
+  function atualizarUniversos() {
+    const nodes = estruturaUniversos();
+    UNIVERSOS = nodes.map(n => {
+      const base = UNIVERSOS_BASE.find(b => b.id === n.id) || UNIVERSOS_BASE.find(b => b.cols.some(c=>n.cols.includes(c)));
+      return {...(base || {sub:'Organize suas coleções em subpastas',cor:['#182235','#eab64c'],emblema:'📁',img:()=>''}),...n,lol:n.cols.includes('lol')};
+    });
+  }
+  function pastaUniversoVisivel(u) {
+    return Auth.admin || u.cols.some(c=>universoVisivel(EQContentAccess.universe({colecao:c}))) || UNIVERSOS.some(n=>n.parent===u.id&&pastaUniversoVisivel(n));
+  }
+  function gerenciadorUniversos() {
+    if(!Auth.admin)return '';
+    return `<details class="painel universe-manager"><summary>⚙️ Administrar universos e subpastas</summary><p>Edite nomes, transfira pastas ou unifique conteúdos. As permissões, arquivos e históricos são preservados.</p><form id="universeForm"><label>Universo ou subpasta<select name="source"><option value="">Novo universo / subpasta</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><label>Nome<input name="title" maxlength="80" required placeholder="Nome do universo"></label><label>Dentro de (transferir para)<select name="parent"><option value="">Raiz dos universos</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-pri" type="submit">Salvar universo</button><label>Destino da unificação<select name="target"><option value="">Selecione um destino</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-sec" type="button" data-universe-merge>Unificar com o destino</button><button class="btn btn-sec" type="button" data-universe-delete>Excluir pasta vazia</button><p role="status" id="universeStatus"></p></form></details>`;
+  }
+  function configurarUniversos() {
+    const form=$('#universeForm');if(!form||!Auth.admin)return;
+    const f=form.elements;
+    f.source.onchange=()=>{const n=UNIVERSOS.find(n=>n.id===f.source.value);f.title.value=n?.nome||'';f.parent.value=n?.parent||'';};
+    async function save(type) {
+      const status=$('#universeStatus');
+      try {
+        if(!Auth.admin||catalogSync.conflict)throw new Error('Resolva a sincronização antes de alterar universos.');
+        const id=f.source.value;
+        if(type!=='edit'&&!id)throw new Error('Selecione o universo de origem.');
+        const next=EQUniverseTree.change(estruturaUniversos(),{type:type==='edit'&&!id?'create':type,id:id||'u-'+crypto.randomUUID(),nome:f.title.value,parent:f.parent.value,target:f.target.value});
+        if(type==='merge'&&!confirm('Unificar estas pastas? O conteúdo e as subpastas serão movidos para o destino, preservando os arquivos e acessos.'))return;
+        if(type==='delete'&&!confirm('Excluir esta pasta vazia?'))return;
+        form.querySelectorAll('button').forEach(b=>b.disabled=true);
+        catalogSync.update({universes:next});await catalogSync.flush();
+        atualizarUniversos();inicioPronto=false;Ex.uni=Ex.heroi=Ex.serie=null;
+        renderPerfil();
+        toast('Organização dos universos salva na nuvem.');
+      }catch(e){status.textContent=e.message;form.querySelectorAll('button').forEach(b=>b.disabled=false);}
+    }
+    form.onsubmit=e=>{e.preventDefault();save('edit');};
+    form.querySelector('[data-universe-merge]').onclick=()=>save('merge');
+    form.querySelector('[data-universe-delete]').onclick=()=>save('delete');
+  }
   const Ex = { uni: null, heroi: null, serie: null, filtro: 'tudo', filtroStatus: 'todos', busca: '', chip: 'todos', mostrar: 48, _cronOk: false };
 
   function categoriaObra(o) { return EQContentAccess.category(o); }
@@ -735,7 +776,7 @@
   }
   function universoDoItem(it) {
     if (!it) return null;
-    if (it.tipo === 'lol' || it.tipo === 'riot-conto' || it.tipo === 'riot-serie' || it.tipo === 'riot-hq') return UNIVERSOS[0];
+    if (it.tipo === 'lol' || it.tipo === 'riot-conto' || it.tipo === 'riot-serie' || it.tipo === 'riot-hq') return UNIVERSOS.find(u=>u.lol) || null;
     return UNIVERSOS.find(u => u.cols.includes(it.colecao)) || null;
   }
 
@@ -752,7 +793,7 @@
       try { (await Dados.lol()).forEach(add); } catch { }
       if (!Ex._cronOk) {
         Ex._cronOk = true;
-        Dados.cronicas().then(() => { if (Ex.uni === 'u-lol') renderExplorador(); }).catch(() => { });
+        Dados.cronicas().then(() => { if (Ex.uni === u.id) renderExplorador(); }).catch(() => { });
       }
     }
     u.cols.forEach(c => (VERBETES[c] || []).forEach(t => add(REG.get('wiki:' + t))));
@@ -788,6 +829,7 @@
     const h = Ex.heroi ? REG.get(Ex.heroi) : null;
     const s = Ex.serie ? REG.get(Ex.serie) : null;
     const partes = [`<button data-ex-nivel="raiz" class="${!u ? 'atual' : ''}">🌌 Universos</button>`];
+    if (u) { let parent=UNIVERSOS.find(n=>n.id===u.parent);const parents=[];while(parent){parents.unshift(`<button data-ex-uni="${parent.id}">${esc(parent.nome)}</button>`);parent=UNIVERSOS.find(n=>n.id===parent.parent);}partes.push(...parents); }
     if (u) partes.push(`<button data-ex-nivel="uni" class="${!h && !s ? 'atual' : ''}">${esc(u.emblema)} ${esc(u.nome)}</button>`);
     if (h) partes.push(`<button data-ex-nivel="heroi" class="${!s ? 'atual' : ''}">🦸 ${esc(h.titulo)}</button>`);
     if (s) partes.push(`<button data-ex-nivel="serie" class="atual">📁 ${esc(s.titulo)}</button>`);
@@ -796,7 +838,7 @@
   }
 
   function cartaoUniverso(u) {
-    if (!universoVisivel(u.id.replace(/^u-/, ''))) return '';
+    if (!pastaUniversoVisivel(u)) return '';
     const st = statsUniverso(u);
     const img = u.img();
     return `<button class="ex-uni" data-ex-uni="${u.id}" style="--c1:${u.cor[0]};--c2:${u.cor[1]}">
@@ -807,6 +849,7 @@
         <b>${esc(u.nome)}</b>
         <small>${esc(u.sub)}</small>
         <span class="ex-uni-stats">
+          ${UNIVERSOS.some(n=>n.parent===u.id)?`<i>📁 ${UNIVERSOS.filter(n=>n.parent===u.id&&pastaUniversoVisivel(n)).length} subpastas</i>`:''}
           <i>👥 ${st.nPers}${u.lol && !Dados._lolN ? '+' : ''}</i>
           ${st.nSeries ? `<i>📁 ${st.nSeries}</i>` : ''}
           <i>📚 ${st.nObras}</i>
@@ -875,7 +918,8 @@
 
   async function renderExplorador() {
     const el = $('#secExplorar'); if (!el) return;
-    const u = UNIVERSOS.find(x => x.id === Ex.uni && universoVisivel(x.id.replace(/^u-/, '')));
+    atualizarUniversos();
+    const u = UNIVERSOS.find(x => x.id === Ex.uni && pastaUniversoVisivel(x));
     let corpo = '';
 
     if (!u) {
@@ -883,7 +927,7 @@
           <div><small>Navegue pela hierarquia</small><h3>🌌 Explorar por Universo</h3>
           <p>Escolha um título → um personagem → suas HQs, Lore e Histórias → as Coleções com todos os volumes.</p></div>
         </div>
-        <div class="ex-unis">${UNIVERSOS.map(cartaoUniverso).join('')}</div>`;
+        <div class="ex-unis">${UNIVERSOS.filter(n=>!n.parent).map(cartaoUniverso).join('')}</div>`;
     } else if (Ex.serie) {
       const s = REG.get(Ex.serie);
       if (!s || !conteudoPermitido(s)) { Ex.serie = null; return renderExplorador(); }
@@ -999,7 +1043,7 @@
           ${img ? `<div class="ex-hero-bg" style="background-image:url('${esc(img)}')"></div>` : ''}
           <div class="ex-hero-emb">${esc(u.emblema)}</div>
           <div class="ex-hero-info">
-            <span class="etiqueta">Universo</span>
+            <span class="etiqueta">Universo${UNIVERSOS.some(n=>n.parent===u.id)?' · Com subpastas':''}</span>
             <h2>${esc(u.nome)}</h2>
             <p>${esc(u.sub)}</p>
             <div class="heroi-contadores">
@@ -1008,7 +1052,7 @@
               ${soltasS.length ? `<span class="contador-pill">📁 Coleções: <b>${soltasS.length}</b></span>` : ''}
               <span class="contador-pill">🗯️ Obras: <b>${soltasO.length}</b></span>
             </div>
-            <div class="destaque-botoes"><button class="btn btn-sec" data-colecao="${u.cols[0]}">📚 Abrir estante completa</button></div>
+            <div class="destaque-botoes">${u.cols.filter(c=>universoVisivel(EQContentAccess.universe({colecao:c}))).map(c=>`<button class="btn btn-sec" data-colecao="${c}">📚 ${esc(COLECOES.find(x=>x.id===c)?.nome||c)}</button>`).join('')}</div>
           </div>
         </div>
         ${lista.length ? `<div class="ex-bloco">
@@ -1032,7 +1076,7 @@
       }).catch(() => { });
     }
 
-    el.innerHTML = `<div class="ex-caixa ${u ? 'aberto' : ''}">${migalhas()}<div class="ex-palco ex-entrar">${corpo}</div></div>`;
+    el.innerHTML = `<div class="ex-caixa ${u ? 'aberto' : ''}">${migalhas()}${Auth.admin?'<button class="btn btn-sec" data-ir="perfil">⚙️ Administrar universos</button>':''}<div class="ex-palco ex-entrar">${u&&!Ex.heroi&&!Ex.serie?`<div class="ex-unis">${UNIVERSOS.filter(n=>n.parent===u.id).map(cartaoUniverso).join('')}</div>`:''}${corpo}</div></div>`;
     const busca = $('#exBusca');
     if (busca) {
       busca.oninput = (e) => {
@@ -1104,7 +1148,7 @@
       pare();
       if (Ex.serie) return exNavegar({ serie: null });
       if (Ex.heroi) return exNavegar({ heroi: null });
-      return exNavegar({ uni: null });
+      return exNavegar({ uni: UNIVERSOS.find(n=>n.id===Ex.uni)?.parent || null });
     }
     const nivel = t.closest('[data-ex-nivel]');
     if (nivel) {
@@ -3272,6 +3316,7 @@
   }
 
   function renderPerfil() {
+    atualizarUniversos();
     const el = $('#aba-perfil');
     if (!el) return;
     const u = Auth.usuario;
@@ -3324,6 +3369,7 @@
 
       ${painelMissoes()}
       <div id="userAccessPanel"></div>
+      ${gerenciadorUniversos()}
 
       ${historico.length ? `
         <div class="secao-cab" style="margin-top:24px">
@@ -3336,10 +3382,11 @@
 
     EQUserAccessUI.mount($('#userAccessPanel'), {
       user: u, prefs,
-      universes: UNIVERSOS.map(v => ({ id: v.id.replace(/^u-/, ''), nome: v.nome })),
+      universes: UNIVERSOS_BASE.map(v => ({ id: v.id.replace(/^u-/, ''), nome: v.nome })),
       save: hidden => { prefs.hiddenUniverses = hidden; salvarPrefs(); inicioPronto = false; Ex.uni = Ex.heroi = Ex.serie = null; },
       refresh: atualizarPermissoes
     });
+    configurarUniversos();
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
     $('#btnEditarPerfil')?.addEventListener('click', () => abrirModalAuth('editar'));

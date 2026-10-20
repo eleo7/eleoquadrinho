@@ -1,4 +1,5 @@
 'use strict';
+const UniverseTree = require('../js/universe-tree');
 const Access = require('../js/content-access');
 const { communityAction } = require('../server/community');
 const { usersAction } = require('../server/user-admin');
@@ -48,9 +49,10 @@ async function profile(id) {
 }
 function object(value) { return value && typeof value === 'object' && !Array.isArray(value); }
 function validateState(data, catalog) {
-  const allowed = catalog ? ['externas', 'drive', 'herois', 'series'] : ['historico', 'salvos', 'avaliacoes', 'finais', 'prefs'];
+  const allowed = catalog ? ['externas', 'drive', 'herois', 'series', 'universes'] : ['historico', 'salvos', 'avaliacoes', 'finais', 'prefs'];
   if (!object(data) || Object.keys(data).some(key => !allowed.includes(key))) throw new HttpError(400, 'Dados inválidos.');
   for (const [key, value] of Object.entries(data)) {
+    if (catalog && key === 'universes') { try { UniverseTree.validate(value); } catch(e) { throw new HttpError(400, e.message); } continue; }
     if (catalog || key === 'historico') {
       if (!Array.isArray(value) || value.length > 5000 || value.some(item => !object(item) || typeof item.id !== 'string')) throw new HttpError(400, 'Lista inválida.');
     } else if (!object(value)) throw new HttpError(400, 'Dados inválidos.');

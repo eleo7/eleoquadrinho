@@ -276,3 +276,15 @@ test('community activation error is actionable without exposing database interna
   const result=await call('community','POST',{operation:'friends'});
   assert.equal(result.status,503);assert.match(result.body.error,/community.sql/);assert.ok(!result.body.error.includes('internal'));
 });
+
+test('universe organization requires admin and validates collection preservation',async()=>{
+  const T=require('../js/universe-tree');
+  const nodes=T.defaults(T.collections.map(c=>({id:'u-'+c,nome:c,cols:[c]})));
+  backend();assert.equal((await call('catalog','PUT',{data:{universes:nodes},revision:0})).status,403);
+  backend({
+    '/rest/v1/profiles?id=eq.reader-id&select=*':()=>Response.json([{id:'reader-id',role:'admin'}]),
+    '/rest/v1/rpc/save_account_data':()=>Response.json(1)
+  });
+  assert.equal((await call('catalog','PUT',{data:{universes:nodes},revision:0})).status,200);
+  assert.equal((await call('catalog','PUT',{data:{universes:[{id:'u-invalid',nome:'Invalid',cols:[],parent:''}]},revision:0})).status,400);
+});
