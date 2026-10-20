@@ -27,3 +27,12 @@ test('news appears once, detects additions not edits, and remembers temporarily 
  assert.deepEqual(N.collect(first.snapshot,[a,b],[reward]).works.map(w=>w.id),['b']);
  assert.equal(N.collect(null,[],[{id:'old'}]).rewards.length,0);
 });
+
+test('launch suppression is per release; later keeps it pending and future rewards return',()=>{
+ const a={id:'frame:a',epic:true},b={id:'frame:b',epic:true};
+ const initial=N.spotlight(null,[a],[]);assert.deepEqual(initial.pending,['frame:a']);
+ assert.deepEqual(N.spotlight(initial,[a],[]).pending,['frame:a']);
+ const seen=N.dismissSpotlight(initial);assert.deepEqual(N.spotlight(seen,[a],[]).pending,[]);
+ assert.deepEqual(N.spotlight(seen,[a,b],[b]).pending,['frame:b']);
+ assert.deepEqual(N.spotlight(initial,[],[]).pending,[]);
+});

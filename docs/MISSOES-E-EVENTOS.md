@@ -25,3 +25,11 @@ Cinco novos estilos inspirados na referência visual: Titã Esmeralda, Tempestad
 O aviso de novidades aparece ao abrir a conta, com HQs/mangás publicados no catálogo e recompensas novas. Só considera conteúdo permitido e não oculto. Na primeira utilização apresenta o catálogo disponível, sem afirmar que obras antigas acabaram de ser publicadas. Nas seguintes compara os IDs com os já apresentados, sincronizados nas preferências da conta. Renomear uma obra não produz aviso novo. Arquivos privados de outro dispositivo nunca entram no aviso.
 
 Para publicar mais artes inéditas, acrescente opções/estilos em `js/epic-rewards.js` e suas artes em `js/reward-art.js`. A rotação automática usa a coleção programada; não gera ilustrações inéditas indefinidamente. Novos IDs de recompensa entram automaticamente no aviso após publicação (respeitando `release`, quando informada).
+
+### Janela de lançamento das conquistas
+
+Ao abrir a conta, as recompensas recém-lançadas recebem uma janela de destaque com troféu, prévias e acesso ao Perfil. As molduras épicas existentes também apresentam esta janela uma vez na estreia do novo formato, mesmo para quem já viu o aviso antigo.
+
+“Depois”, o X e Escape deixam o lançamento pendente para a próxima abertura. “Não mostrar novamente este lançamento” seguido de fechar, ou “Ver meu perfil”, registra que aquelas recompensas já foram apresentadas. Esse registro acompanha a conta; novas recompensas com outros IDs continuam gerando avisos. As edições mensais só entram após sua data de lançamento. Os avisos de HQs permanecem no painel de novidades, sem repetir as recompensas da janela.
+
+A janela usa diálogo nativo, navegação por teclado, foco contido, restauração de foco e rolagem própria em telas pequenas. Respeita movimento reduzido. Ela anuncia recompensas disponíveis para conquistar, sem conceder itens nem alterar as metas de leitura.

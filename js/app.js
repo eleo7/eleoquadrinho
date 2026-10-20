@@ -113,6 +113,7 @@
     sessaoEncerrada: false,
     async sair() {
       $('#releaseNews')?.remove();
+      $('#achievementLaunch')?.remove();
       if (this.saindo) return;
       this.saindo = true;
       const button = $('#btnSairPerfil');
@@ -3188,14 +3189,35 @@
     const works=[...externas,...drive].filter(it=>conteudoPermitido(it)&&['hq','manga'].includes(categoriaObra(it)));
     const rewards=Object.entries(EQReadingRewards.OPTIONS).flatMap(([kind,options])=>options.filter(o=>!o.release||o.release<=day).map(o=>({...o,id:kind+':'+o.id,rewardId:o.id,kind})));
     const news=EQReleaseNews.collect(prefs.releaseNews,works,rewards);
-    if(!news.works.length&&!news.rewards.length)return;
+    mostrarLancamentoConquistas(rewards,news.rewards);
+    if(news.works.length||news.rewards.length){prefs.releaseNews=news.snapshot;salvarPrefs();}
+    news.rewards=[]; // Reward releases have their own spotlight; this banner lists HQs only.
+    if(!news.works.length)return;
     const box=document.createElement('aside');box.id='releaseNews';box.className='release-news painel';box.setAttribute('aria-label','Novidades da sua conta');
     box.innerHTML=`<div class="release-news-head"><div><small>NOVIDADES</small><h3>${news.first?'Veja o que está disponível na sua conta':'Chegaram novidades para você!'}</h3></div><button class="btn btn-sec" data-news-close aria-label="Fechar novidades">✕</button></div><p>${news.works.length?`${news.works.length} HQ(s) ${news.first?'no catálogo':'adicionada(s) desde sua última visita'}. `:''}${news.rewards.length?`${news.rewards.length} nova(s) recompensa(s) para descobrir.`:''}</p><details><summary>Ver novidades</summary>${news.rewards.length?`<div class="news-rewards">${news.rewards.slice(0,5).map(o=>`<div><span class="news-art">${o.kind==='frame'?EQRewardArt.frame(o.rewardId):EQRewardArt.avatar(o.kind==='avatar'?o.rewardId:'sentinel')}</span><strong>${esc(o.label)}</strong></div>`).join('')}</div><button class="btn btn-pri" data-news-rewards>Ver desafios e recompensas</button>`:''}${news.works.length?`<h4>HQs disponíveis</h4><ul>${news.works.slice(0,8).map(it=>`<li>${esc(it.titulo||'HQ sem título')}</li>`).join('')}</ul>${news.works.length>8?'<p>Veja as demais HQs na biblioteca.</p>':''}<button class="btn btn-sec" data-news-library>Abrir biblioteca</button>`:''}</details>`;
     $('#app').prepend(box);
-    prefs.releaseNews=news.snapshot;salvarPrefs();
     box.querySelector('[data-news-close]').onclick=()=>box.remove();
     box.querySelector('[data-news-rewards]')?.addEventListener('click',()=>{box.remove();ir('perfil');});
     box.querySelector('[data-news-library]')?.addEventListener('click',()=>{box.remove();ir('biblioteca');});
+  }
+  function mostrarLancamentoConquistas(available,added) {
+    $('#achievementLaunch')?.remove();
+    const state=EQReleaseNews.spotlight(prefs.achievementNews,available,added);
+    if(JSON.stringify(state)!==JSON.stringify(prefs.achievementNews)){prefs.achievementNews=state;salvarPrefs();}
+    if(!state.pending.length)return;
+    const items=available.filter(o=>state.pending.includes(o.id)),dialog=document.createElement('dialog'),account=Auth.usuario.id,previousFocus=document.activeElement;
+    dialog.id='achievementLaunch';dialog.className='achievement-launch';dialog.setAttribute('aria-labelledby','achievementLaunchTitle');dialog.setAttribute('aria-describedby','achievementLaunchDescription');
+    dialog.innerHTML=`<button class="launch-close" aria-label="Fechar lançamento" data-launch-close>✕</button><div class="launch-trophy" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M35 18h50v29c0 34-50 34-50 0Z M35 25H19v12q0 17 20 17m46-29h16v12q0 17-20 17M60 73v15m-15 13q0-13 15-13t15 13M40 105h40" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="launch-tag">NOVAS RECOMPENSAS</span><h2 id="achievementLaunchTitle">CHEGARAM AS <strong>CONQUISTAS!</strong></h2><p id="achievementLaunchDescription">Sua próxima leitura vale uma nova conquista. Descubra ${items.length} recompensa(s) e os desafios para desbloqueá-las no seu perfil.</p><div class="launch-previews">${items.slice(0,4).map(o=>`<div><span>${previaRecompensa(o.kind,{...o,id:o.rewardId})}</span><small>${esc(o.label)}</small></div>`).join('')}</div><label class="launch-optout"><input type="checkbox" data-launch-hide> Não mostrar novamente este lançamento</label><button class="launch-primary" data-launch-profile>Ver meu perfil</button><button class="launch-later" data-launch-later>Depois</button>`;
+    document.body.append(dialog);
+    function close(acknowledge=false){
+      if(Auth.usuario?.id===account&&(acknowledge||dialog.querySelector('[data-launch-hide]').checked)){prefs.achievementNews=EQReleaseNews.dismissSpotlight(state);salvarPrefs();}
+      dialog.close();dialog.remove();if(previousFocus?.isConnected)previousFocus.focus({preventScroll:true});
+    }
+    dialog.querySelector('[data-launch-close]').onclick=()=>close();dialog.querySelector('[data-launch-later]').onclick=()=>close();
+    dialog.querySelector('[data-launch-profile]').onclick=()=>{close(true);ir('perfil');};
+    dialog.addEventListener('cancel',e=>{e.preventDefault();close();});
+    dialog.addEventListener('keydown',e=>e.stopPropagation());
+    dialog.showModal();
   }
   function aplicarRecompensas() {
     const state = estadoRecompensas(), selected = EQReadingRewards.appearance(state);

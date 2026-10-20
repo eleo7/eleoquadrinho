@@ -72,12 +72,15 @@ def connect(context, role='reader'):
     context.route('https://**/*', lambda route: route.abort())
     return session
 
-def login(page):
+def login(page, show_news=False):
     page.goto(BASE, wait_until='domcontentloaded')
     page.locator('#authLoginInput').fill('reader')
     page.locator('#authSenhaInput').fill('test-password')
     page.locator('#formConta button[type=submit]').click()
     page.wait_for_function("document.querySelector('#headerNome').textContent === 'Leitor Teste'")
+    if not show_news and page.locator('#achievementLaunch[open]').count():
+        page.locator('[data-launch-hide]').check()
+        page.locator('[data-launch-close]').click()
 
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
@@ -99,6 +102,8 @@ with sync_playwright() as p:
     page.locator('#authSenhaInput').fill('test-password')
     page.locator('#formConta button[type=submit]').click()
     page.wait_for_function("document.querySelector('#headerNome').textContent === 'Leitor Teste'")
+    page.locator('[data-launch-hide]').check()
+    page.locator('[data-launch-close]').click()
     page.locator('nav [data-ir=biblioteca]').click()
     page.wait_for_selector('#aba-biblioteca.ativa .cartao')
     assert page.locator('#aba-biblioteca [data-editar]:visible').count() == 0

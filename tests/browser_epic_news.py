@@ -4,11 +4,11 @@ exec((Path(__file__).parent/'browser_smoke.py').read_text().split('with sync_pla
 with sync_playwright() as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
     ctx=browser.new_context(service_workers='block',viewport={'width':390,'height':844});connect(ctx)
-    page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));login(page)
+    page=ctx.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));login(page, show_news=True)
     assert page.locator('#releaseNews').count()==1
-    page.locator('#releaseNews details summary').click()
-    assert page.locator('#releaseNews .news-art svg').count()==5
-    page.locator('[data-news-rewards]').click()
+    assert page.locator('#achievementLaunch .launch-previews .reward-frame-art').count()==4
+    page.locator('[data-launch-profile]').click()
+    page.locator('[data-news-close]').click()
     page.wait_for_selector('.epic-challenges')
     assert page.locator('.epic-challenge').count()==2
     assert page.locator('.epic-art .epic-frame').count()==2
