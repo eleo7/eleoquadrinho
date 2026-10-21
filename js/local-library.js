@@ -55,6 +55,13 @@
       pegar:id=>transaction(['arquivos'],'readonly',tx=>{const r=tx.objectStore('arquivos').get(id);return ()=>r.result;}),
       salvar:book=>transaction(['arquivos','metadados'],'readwrite',tx=>{tx.objectStore('arquivos').put(book);tx.objectStore('metadados').put(metadata(book));}),
       apagar:id=>transaction(['arquivos','metadados'],'readwrite',tx=>{tx.objectStore('arquivos').delete(id);tx.objectStore('metadados').delete(id);}),
+      apagarSelecionados:async(ids,id)=>{
+        if(getUser()?.id!==id||getUser()?.role!=='admin')throw new Error('Reabra a biblioteca na conta de administrador.');
+        return transaction(['arquivos','metadados'],'readwrite',tx=>{
+          if(getUser()?.id!==id||getUser()?.role!=='admin')throw new Error('A conta mudou. Reabra a biblioteca.');
+          for(const key of new Set(ids)){tx.objectStore('arquivos').delete(key);tx.objectStore('metadados').delete(key);}
+        });
+      },
       organizarSeries:async(changes,id)=>{
         if(getUser()?.id!==id||getUser()?.role!=='admin')throw new Error('Reabra a biblioteca na conta de administrador.');
         return transaction(['arquivos','metadados'],'readwrite',tx=>{
