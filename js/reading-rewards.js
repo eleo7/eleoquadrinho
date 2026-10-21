@@ -38,6 +38,28 @@
   ].map(([id,label,xp])=>({id,label,xp,art:true})));
   OPTIONS.theme.push({id:'obsidian',label:'Obsidiana',xp:2000},{id:'aurora',label:'Aurora',xp:6000},{id:'imperial',label:'Imperial',xp:12000});
   OPTIONS.layout.push({id:'showcase',label:'Vitrine',xp:1500},{id:'shelf',label:'Estante',xp:5000});
+  const COMIC_MISSIONS = [
+    ['avatar','comet','Capitão Cometa','Cometa · 4 histórias completas','completed',4,'☄️'],
+    ['avatar','wasp','Vespa Violeta','Vespa · 7 histórias completas','completed',7,'🐝'],
+    ['avatar','red_sentinel','Sentinela Rubra','Sentinela · 1 hora de leitura','seconds',3600,'🛡️'],
+    ['avatar','emerald','Guardião Esmeralda','Guardião · 12 histórias completas','completed',12,'🌿'],
+    ['avatar','thunder','Trovão','Trovão · 1h30 de leitura','seconds',5400,'⚡'],
+    ['avatar','nebula','Nebulosa','Nebulosa · 18 histórias completas','completed',18,'🌌'],
+    ['avatar','prism','Ciborgue Prisma','Ciborgue · 10 dias de meta','days',10,'🤖'],
+    ['avatar','phantom','Máscara Fantasma','Fantasma · 30 histórias completas','completed',30,'👻'],
+    ['frame','pop','Pop Halftone','Pop · 20 minutos de leitura','seconds',1200,'🎨'],
+    ['frame','neon','Neon City','Neon · 5 histórias completas','completed',5,'🌆'],
+    ['frame','golden','Era de Ouro','Era de Ouro · 2h30 de leitura','seconds',9000,'🏛️'],
+    ['frame','onyx','Ônix Real','Ônix · 7 dias de meta','days',7,'💎'],
+    ['frame','aurora','Aurora Boreal','Aurora · 14 dias de meta','days',14,'🌈'],
+    ['frame','inferno','Inferno','Inferno · 4 horas de leitura','seconds',14400,'🔥'],
+    ['frame','ocean','Maré Profunda','Maré · 6 horas de leitura','seconds',21600,'🌊'],
+    ['frame','pixel','Herói Pixel','Pixel · 20 histórias completas','completed',20,'👾']
+  ];
+  for (const [kind,id,label,title,metric,target,icon] of COMIC_MISSIONS) {
+    OPTIONS[kind].push({id,label,art:kind==='avatar'});
+    MISSIONS.push({id:'comic_'+id,title,metric,target,reward:kind+':'+id,label:(kind==='avatar'?'Avatar ':'Moldura ')+label,icon});
+  }
   for (const set of Seasons.SETS) {
     for (const kind of ['frame','avatar','theme']) {
       OPTIONS[kind].push({id:'hero_'+set.id,label:set.hero+' · '+set.label,art:kind==='avatar',set:set.id});

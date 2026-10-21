@@ -93,8 +93,22 @@ test('hero events rotate on Mondays and return after twelve weeks', () => {
   assert.equal(R.event(s,'2026-10-25').set.id,'flash');
   assert.equal(R.event(s,'2026-10-26').set.id,'batman');
   assert.equal(R.event(s,'2027-01-11').set.id,'flash');
-  assert.equal(R.MISSIONS.length,45);
+  assert.equal(R.MISSIONS.length,61);
   assert.equal(Object.values(R.OPTIONS).flat().filter(o=>o.set).length,72);
+});
+test('comic hero missions unlock the new avatars and frames at their reading goals', () => {
+  const done = n => R.normalize({books:Object.fromEntries(Array.from({length:n},(_,i)=>['work:comic'+i,{seconds:60,progress:1,completed:true}]))});
+  assert.ok(!R.available(R.normalize(),'avatar','comet'));
+  assert.ok(!R.available(done(3),'avatar','comet'));
+  assert.ok(R.available(done(4),'avatar','comet'));
+  assert.equal(R.appearance(R.equip(done(4),'avatar','comet')).avatar,'comet');
+  assert.ok(!R.available(R.normalize(),'frame','pop'));
+  assert.ok(!R.available(R.normalize({totalSeconds:1199}),'frame','pop'));
+  assert.ok(R.available(R.normalize({totalSeconds:1200}),'frame','pop'));
+  assert.ok(!R.available(R.normalize({goalDays:13}),'frame','aurora'));
+  assert.ok(R.available(R.normalize({goalDays:14}),'frame','aurora'));
+  const comic = [['avatar','comet'],['avatar','wasp'],['avatar','red_sentinel'],['avatar','emerald'],['avatar','thunder'],['avatar','nebula'],['avatar','prism'],['avatar','phantom'],['frame','pop'],['frame','neon'],['frame','golden'],['frame','onyx'],['frame','aurora'],['frame','inferno'],['frame','ocean'],['frame','pixel']];
+  for(const [kind,id] of comic) assert.ok(R.MISSIONS.some(m=>m.reward===kind+':'+id), kind+':'+id+' precisa de missão');
 });
 test('event rewards require this week reading and persist across rotation and serialization', () => {
   let s=read(null,600,'old','2026-10-18');
