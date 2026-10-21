@@ -3608,7 +3608,7 @@
       <p id="hqPackageSearchStatus" role="status" aria-live="polite"></p>
       <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
       <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
-      ${Auth.admin?'<button type="button" class="btn btn-sec" id="deleteHQSelection">Excluir selecionadas deste dispositivo</button>':''}
+      <button type="button" class="btn btn-sec" id="deleteHQSelection">Excluir selecionadas deste dispositivo</button>
       <button type="button" class="btn btn-sec hq-import-cancel" id="cancelHQBatch" hidden>Cancelar próximos pacotes</button><label class="btn btn-sec">Importar pacotes de HQs<input id="importHQPackage" type="file" multiple hidden></label>
       <p>Se o celular abriu o pacote como pasta, use uma das opções abaixo. Não importe os arquivos internos como HQs avulsas.</p>
       <label class="btn btn-sec">Importar pasta descompactada<input id="importHQFolder" type="file" webkitdirectory multiple hidden></label>
@@ -3662,11 +3662,11 @@
       if (Auth.usuario?.id !== account || !selection.isConnected) return;
       files = items.filter(o => o.hasFile);
       renderOptions();
-      if (!files.length) status.textContent = 'Nenhum arquivo local disponível para exportar.';
+      if (!files.length && !status.textContent) status.textContent = 'Nenhum arquivo local disponível para exportar.';
     }).catch(() => { status.textContent = 'Não foi possível carregar os arquivos locais.'; });
     const deleteButton=$('#deleteHQSelection');
     if(deleteButton)deleteButton.onclick=async()=>{
-      if(!Auth.admin||Auth.usuario?.id!==account)return;
+      if(Auth.usuario?.id!==account)return;
       const ids=[...selected];
       if(!ids.length){status.textContent='Selecione pelo menos uma HQ na lista.';return;}
       if(!confirm(`Tem certeza de que deseja excluir ${ids.length} HQ(s) selecionada(s) deste dispositivo, incluindo seleções fora do filtro?\n\nOs arquivos locais serão apagados e esta ação não pode ser desfeita. Baixe um pacote antes se precisar de backup. A nuvem, seu perfil, histórico e favoritos serão mantidos.`))return;
