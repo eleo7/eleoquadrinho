@@ -15,6 +15,7 @@ with sync_playwright() as p:
     page.locator('nav [data-ir=biblioteca]').click();page.locator('#tabDevice').click()
     page.locator('.pacotes-hq summary').click()
     assert page.locator('#importHQPackage').get_attribute('accept') is None
+    page.wait_for_timeout(1200) # Let login preferences finish syncing before measuring import isolation.
     before=json.dumps(cloud);before_catalog=json.dumps(catalog)
     file={'name':'shared.eleohq','mimeType':'application/octet-stream','buffer':package.getvalue()}
     page.locator('#importHQPackage').set_input_files(file)
@@ -24,6 +25,16 @@ with sync_playwright() as p:
     assert json.dumps(cloud)==before and json.dumps(catalog)==before_catalog
     page.locator('#importHQPackage').set_input_files({'name':'broken.eleohq','mimeType':'application/octet-stream','buffer':b'broken'})
     page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('Não foi possível importar: Pacote')")
+    second_content=b'Outra HQ do lote.'
+    second_manifest=json.loads(json.dumps(manifest));second_manifest['books'][0].update(nome='Segunda HQ',size=len(second_content),hash=hashlib.sha256(second_content).hexdigest())
+    second=io.BytesIO()
+    with zipfile.ZipFile(second,'w') as z:
+        z.writestr('manifest.json',json.dumps(second_manifest));z.writestr('files/0.txt',second_content)
+    page.locator('#importHQPackage').set_input_files([file,{'name':'invalid.eleohq','mimeType':'application/octet-stream','buffer':b'broken'},{'name':'second.eleohq','mimeType':'application/octet-stream','buffer':second.getvalue()}])
+    page.wait_for_function("document.querySelector('#hqPackageStatus').textContent.includes('second.eleohq: 1 importada')")
+    result=page.locator('#hqPackageStatus').inner_text()
+    assert '1 HQ(s) importadas; 1 duplicada(s)' in result and 'invalid.eleohq' in result
+    assert json.dumps(cloud)==before and json.dumps(catalog)==before_catalog
     page.locator('#importHQPackage').set_input_files([])
     assert page.locator('#importHQPackage').is_enabled()
     # Android file managers may show an extracted folder, not the original ZIP.

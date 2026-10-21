@@ -217,7 +217,7 @@
     if (o) { for (const k in it) if (it[k] != null) o[k] = it[k]; return o; }
     REG.set(it.id, it); return it;
   }
-  const col = (id) => COLECOES.find(c => c.id === id);
+  const col = (id) => COLECOES.find(c => c.id === id) || (()=>{const u=catalogSync?.data.universes?.find(n=>n.cols.includes(id));return u?{id,nome:u.nome,sub:'Conteúdo deste universo',cor:['#182235','#eab64c'],emblema:'🌌',capa:u.cover||'assets/universe-default.svg',fonte:'Sua biblioteca'}:null;})();
   const snap = (it) => { const o = {}; for (const k in it) if (typeof it[k] !== 'function' && k !== 'blob') o[k] = it[k]; return o; };
 
   const REGIAO_DE = {};
@@ -624,7 +624,7 @@
     $$('.aba').forEach(a => a.classList.toggle('ativa', a.id === 'aba-' + alvo));
     $$('.nav-inferior button').forEach(b => {const active=b.dataset.ir===alvo;b.classList.toggle('ativo',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     window.scrollTo({ top: 0 });
-    ({ comunidade: renderComunidade, inicio: renderInicio, busca: renderBusca, historico: renderHistorico, biblioteca: renderBiblioteca, salvos: renderSalvos, perfil: renderPerfil, colecao: () => renderColecao(arg) })[alvo]();
+    return ({ comunidade: renderComunidade, inicio: renderInicio, busca: renderBusca, historico: renderHistorico, biblioteca: renderBiblioteca, salvos: renderSalvos, perfil: renderPerfil, colecao: () => renderColecao(arg) })[alvo]();
   }
   window.addEventListener('hashchange', rota);
   $('#skipContent').onclick=()=>{$('#app').focus();$('#app').scrollIntoView({block:'start'});};
@@ -740,9 +740,35 @@
   function pastaUniversoVisivel(u) {
     return Auth.admin || u.cols.some(c=>universoVisivel(EQContentAccess.universe({colecao:c}))) || UNIVERSOS.some(n=>n.parent===u.id&&pastaUniversoVisivel(n));
   }
+  function opcoesUniversoConteudo(){
+    atualizarUniversos();
+    const entries=new Map(COLECOES.map(c=>[c.id,c.nome]));
+    for(const u of UNIVERSOS)for(const c of u.cols)if(EQUniverseTree.isCustom(c))entries.set(c,u.nome);
+    return [...entries].map(([id,nome])=>`<option value="${esc(id)}">${esc(nome)}</option>`).join('');
+  }
+  async function universoParaConteudo(id){
+    if(!Auth.admin||catalogSync.conflict)throw new Error('Apenas o administrador pode organizar universos com a sincronização em dia.');
+    let nodes=estruturaUniversos(),u=nodes.find(n=>n.id===id);if(!u)throw new Error('Selecione um universo.');
+    if(!u.cols.length){nodes=nodes.map(n=>n.id===id?{...n,cols:['custom-'+id.slice(2)]}:n);EQUniverseTree.validate(nodes);catalogSync.update({universes:nodes});await catalogSync.flush();atualizarUniversos();u=nodes.find(n=>n.id===id);}
+    return u;
+  }
+  async function abrirCriadorUniverso(id,kind){
+    try{
+      const u=await universoParaConteudo(id);
+      bibliotecaOrigem='cloud';history.pushState(null,'','#biblioteca');
+      await rota();
+      for(const field of ['extColecao','novoHeroiColecao','novaSerieColecao'])$('#'+field).value=u.cols[0];
+      if(kind==='hero')$('#btnToggleNovoHeroi').click();
+      else if(kind==='series')$('#btnToggleNovaSerie').click();
+      else $(`[data-formato="${kind==='lore'?'Lore':'HQ'}"]`).click();
+      const target=kind==='hero'?$('#painelNovoHeroi'):kind==='series'?$('#painelNovaSerie'):$('#painelFormObra');
+      target.scrollIntoView({block:'start'});toast('Cadastrando conteúdo em '+u.nome+'.');
+    }catch(e){toast(e.message);}
+  }
+
   function gerenciadorUniversos() {
     if(!Auth.admin)return '';
-    return `<details class="painel universe-manager"><summary>⚙️ Administrar universos e subpastas</summary><p>Edite nomes, transfira pastas ou unifique conteúdos. As permissões, arquivos e históricos são preservados.</p><form id="universeForm"><label>Universo ou subpasta<select name="source"><option value="">Novo universo / subpasta</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><label>Nome<input name="title" maxlength="80" required placeholder="Nome do universo"></label><label>Capa (endereço HTTPS, opcional)<input name="cover" type="url" placeholder="https://.../imagem.jpg"></label><label>Dentro de (transferir para)<select name="parent"><option value="">Raiz dos universos</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-pri" type="submit">Salvar universo</button><label>Destino da unificação<select name="target"><option value="">Selecione um destino</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-sec" type="button" data-universe-merge>Unificar com o destino</button><button class="btn btn-sec" type="button" data-universe-delete>Excluir pasta vazia</button><p role="status" id="universeStatus"></p></form></details>`;
+    return `<details class="painel universe-manager"><summary>⚙️ Administrar universos e subpastas</summary><p>Edite nomes, transfira pastas ou unifique conteúdos. As permissões, arquivos e históricos são preservados.</p><form id="universeForm"><label>Universo ou subpasta<select name="source"><option value="">Novo universo / subpasta</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><label>Nome<input name="title" maxlength="80" required placeholder="Nome do universo"></label><label>Capa (endereço HTTPS, opcional)<input name="cover" type="url" placeholder="https://.../imagem.jpg"></label><label>Dentro de (transferir para)<select name="parent"><option value="">Raiz dos universos</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-pri" type="submit">Salvar universo</button><label>Destino da unificação<select name="target"><option value="">Selecione um destino</option>${UNIVERSOS.map(n=>`<option value="${n.id}">${esc(n.nome)}</option>`).join('')}</select></label><button class="btn btn-sec" type="button" data-universe-merge>Unificar com o destino</button><button class="btn btn-sec" type="button" data-universe-delete>Excluir pasta vazia</button><p role="status" id="universeStatus"></p><div class="universe-content-actions"><h4>Conteúdo do universo selecionado</h4><button type="button" class="btn btn-sec" data-universe-content="hero">🦸 Criar personagem</button><button type="button" class="btn btn-sec" data-universe-content="series">📁 Criar série / subpasta</button><button type="button" class="btn btn-sec" data-universe-content="hq">📚 Adicionar HQ</button><button type="button" class="btn btn-sec" data-universe-content="lore">📜 Adicionar lore / conto</button><button type="button" class="btn btn-sec" data-universe-link>Vincular HQs existentes</button><div data-universe-links></div></div></form></details>`;
   }
   function configurarUniversos() {
     const form=$('#universeForm');if(!form||!Auth.admin)return;
@@ -754,19 +780,38 @@
         if(!Auth.admin||catalogSync.conflict)throw new Error('Resolva a sincronização antes de alterar universos.');
         const id=f.source.value;
         if(type!=='edit'&&!id)throw new Error('Selecione o universo de origem.');
-        const next=EQUniverseTree.change(estruturaUniversos(),{type:type==='edit'&&!id?'create':type,id:id||'u-'+crypto.randomUUID(),nome:f.title.value,cover:f.cover.value.trim(),parent:f.parent.value,target:f.target.value});
+        const next=EQUniverseTree.change(estruturaUniversos(),{type:type==='edit'&&!id?'create':type,id:id||'u-'+crypto.randomUUID(),nome:f.title.value,cover:f.cover.value.trim(),parent:f.parent.value,target:f.target.value,used:[...externas,...drive,...herois,...series].map(it=>it.colecao)});
         if(type==='merge'&&!confirm('Unificar estas pastas? O conteúdo e as subpastas serão movidos para o destino, preservando os arquivos e acessos.'))return;
         if(type==='delete'&&!confirm('Excluir esta pasta vazia?'))return;
         form.querySelectorAll('button').forEach(b=>b.disabled=true);
         catalogSync.update({universes:next});await catalogSync.flush();
         atualizarUniversos();inicioPronto=false;Ex.uni=Ex.heroi=Ex.serie=null;
+        const selectedId=type==='delete'?'':type==='merge'?f.target.value:id||next[next.length-1].id;
         renderPerfil();
+        const updated=$('#universeForm');updated.closest('details').open=true;updated.elements.source.value=selectedId;updated.elements.source.onchange();
         toast('Organização dos universos salva na nuvem.');
       }catch(e){status.textContent=e.message;form.querySelectorAll('button').forEach(b=>b.disabled=false);}
     }
     form.onsubmit=e=>{e.preventDefault();save('edit');};
     form.querySelector('[data-universe-merge]').onclick=()=>save('merge');
     form.querySelector('[data-universe-delete]').onclick=()=>save('delete');
+    form.querySelectorAll('[data-universe-content]').forEach(b=>b.onclick=()=>abrirCriadorUniverso(f.source.value,b.dataset.universeContent));
+    form.querySelector('[data-universe-link]').onclick=()=>{
+      const u=estruturaUniversos().find(n=>n.id===f.source.value);if(!u)return toast('Selecione um universo.');
+      const box=form.querySelector('[data-universe-links]');
+      const items=[...externas,...drive].filter(it=>!u.cols.includes(it.colecao));
+      box.innerHTML=`<p>Selecione as HQs para transferir. Vínculos com personagens ou séries de outro universo serão removidos; os arquivos e o histórico serão preservados.</p><div class="universe-link-list">${items.map(it=>`<label><input type="checkbox" value="${esc(it.id)}"> ${esc(it.titulo)}</label>`).join('')||'<p>Nenhuma HQ disponível para transferir.</p>'}</div><button type="button" class="btn btn-pri" data-confirm-universe-link>Vincular selecionadas</button>`;
+      box.querySelector('button').onclick=async()=>{
+        const button=box.querySelector('button');button.disabled=true;
+        try{
+          const ids=new Set([...box.querySelectorAll('input:checked')].map(e=>e.value));if(!ids.size)throw new Error('Selecione pelo menos uma HQ.');
+          const target=await universoParaConteudo(u.id);
+          const move=it=>{if(!ids.has(it.id))return it;const next={...it,colecao:target.cols[0]};if(!herois.some(h=>h.id===it.heroiId&&target.cols.includes(h.colecao))){next.heroiId='';next.heroiNome='';}if(!series.some(v=>v.id===it.serieId&&target.cols.includes(v.colecao))){next.serieId='';next.serieNome='';}return next;};
+          externas=externas.map(move);drive=drive.map(move);catalogSync.update({externas,drive});await catalogSync.flush();[...externas,...drive].forEach(reg);inicioPronto=false;box.textContent=ids.size+' HQ(s) vinculada(s) a '+target.nome+'.';
+        }catch(e){$('#universeStatus').textContent=e.message;button.disabled=false;}
+      };
+    };
+
   }
   const Ex = { uni: null, heroi: null, serie: null, filtro: 'tudo', filtroStatus: 'todos', busca: '', chip: 'todos', mostrar: 48, _cronOk: false };
 
@@ -1058,7 +1103,7 @@
               ${soltasS.length ? `<span class="contador-pill">📁 Coleções: <b>${soltasS.length}</b></span>` : ''}
               <span class="contador-pill">🗯️ Obras: <b>${soltasO.length}</b></span>
             </div>
-            <div class="destaque-botoes">${u.cols.filter(c=>universoVisivel(EQContentAccess.universe({colecao:c}))).map(c=>`<button class="btn btn-sec" data-colecao="${c}">📚 ${esc(COLECOES.find(x=>x.id===c)?.nome||c)}</button>`).join('')}</div>
+            <div class="destaque-botoes">${Auth.admin?`<button class="btn btn-pri" data-universe-create="${u.id}" data-kind="hq">➕ HQ / lore</button><button class="btn btn-sec" data-universe-create="${u.id}" data-kind="hero">🦸 Personagem</button><button class="btn btn-sec" data-universe-create="${u.id}" data-kind="series">📁 Série</button>`:''}${u.cols.filter(c=>universoVisivel(EQContentAccess.universe({colecao:c}))).map(c=>`<button class="btn btn-sec" data-colecao="${c}">📚 ${esc(col(c)?.nome||c)}</button>`).join('')}</div>
           </div>
         </div>
         ${lista.length ? `<div class="ex-bloco">
@@ -1113,6 +1158,7 @@
     const t = e.target;
     if (!t.closest || !t.closest('#secExplorar')) return;
     const pare = () => { e.stopPropagation(); e.preventDefault(); };
+    const create=t.closest('[data-universe-create]');if(create){pare();return abrirCriadorUniverso(create.dataset.universeCreate,create.dataset.kind);}
     const ler = t.closest('[data-ler]');
     if (ler) {
       pare();
@@ -3430,7 +3476,7 @@
 
     EQUserAccessUI.mount($('#userAccessPanel'), {
       user: u, prefs,
-      universes: UNIVERSOS_BASE.map(v => ({ id: v.id.replace(/^u-/, ''), nome: v.nome })),
+      universes: [...UNIVERSOS_BASE.map(v => ({id:v.id.replace(/^u-/,''),nome:v.nome})),...UNIVERSOS.flatMap(v=>v.cols.filter(EQUniverseTree.isCustom).map(id=>({id,nome:v.nome})))],
       save: hidden => { prefs.hiddenUniverses = hidden; salvarPrefs(); inicioPronto = false; Ex.uni = Ex.heroi = Ex.serie = null; },
       refresh: atualizarPermissoes
     });
@@ -3562,7 +3608,7 @@
       <p id="hqPackageSearchStatus" role="status" aria-live="polite"></p>
       <select id="hqPackageSelection" multiple size="5" aria-label="HQs para compartilhar" style="width:100%"></select>
       <button class="btn btn-sec" id="exportHQPackage">Baixar pacote das HQs selecionadas</button>
-      <label class="btn btn-sec">Importar pacote de HQs<input id="importHQPackage" type="file" hidden></label>
+      <button type="button" class="btn btn-sec hq-import-cancel" id="cancelHQBatch" hidden>Cancelar próximos pacotes</button><label class="btn btn-sec">Importar pacotes de HQs<input id="importHQPackage" type="file" multiple hidden></label>
       <p>Se o celular abriu o pacote como pasta, use uma das opções abaixo. Não importe os arquivos internos como HQs avulsas.</p>
       <label class="btn btn-sec">Importar pasta descompactada<input id="importHQFolder" type="file" webkitdirectory multiple hidden></label>
       <p>Selecione a pasta principal que contém manifest.json e a subpasta files.</p>
@@ -3636,8 +3682,31 @@
     };
     const folderInput = $('#importHQFolder'), partsInput = $('#importHQParts'), pendingParts = new Map();
     $('#clearHQParts').onclick = () => { pendingParts.clear(); status.textContent = 'Seleção de arquivos descompactados limpa.'; };
+    let batchRunning=false,batchCancelled=false;
+    const cancel=$('#cancelHQBatch');cancel.onclick=()=>{batchCancelled=true;cancel.disabled=true;status.textContent='Cancelando a fila. O pacote já em gravação será preservado.';};
+    async function importPackages(chosen){
+      if(batchRunning)return;batchRunning=true;batchCancelled=false;
+      importInput.disabled=folderInput.disabled=partsInput.disabled=true;cancel.hidden=false;cancel.disabled=false;
+      let report;
+      try{
+        report=await EQPackageBatch.run(chosen,{
+          active:()=>!batchCancelled&&Auth.usuario?.id===account,
+          progress:({index,total,name})=>{status.textContent=`Pacote ${index+1} de ${total}: ${name} — conferindo e importando…`;},
+          unpack:async file=>{if(file.name==='manifest.json')throw new Error('Pacote descompactado: use Importar pasta ou Adicionar manifest e arquivos.');if(file.size>EQHQPackage.LIMIT+12*1024*1024)throw new Error('Este pacote excede o limite de 500 MB de HQs.');return EQHQPackage.unpack(file,JSZip);},
+          save:books=>BD.importarPacote(books,account)
+        });
+        if(Auth.usuario?.id!==account)return;
+        if(report.results.some(r=>r.added)){await renderMinhasHQs();await renderBiblioteca();}
+        const added=report.results.reduce((n,r)=>n+(r.added||0),0),duplicates=report.results.reduce((n,r)=>n+(r.duplicates||0),0);
+        const target=$('#hqPackageStatus')||status;
+        const panel=target.closest('details');if(panel)panel.open=true;
+        target.textContent=`${added} HQ(s) importadas; ${duplicates} duplicada(s) ignoradas. ${report.remaining?report.remaining+' pacote(s) não processado(s). ':''}Perfil, histórico e favoritos preservados.\n`+report.results.map(r=>r.error?`⚠ ${r.name}: ${r.code==='QuotaExceededError'?'Navegador sem espaço. Libere armazenamento e tente novamente.':r.code==='NotReadableError'||r.code==='NotFoundError'?'Não foi possível ler o arquivo. Salve o pacote na pasta Downloads ou Arquivos do celular e tente novamente.':'Não foi possível importar: '+r.error}`:`✓ ${r.name}: ${r.added} importada(s), ${r.duplicates} duplicada(s).`).join('\n');
+      }catch(error){if(Auth.usuario?.id===account)($('#hqPackageStatus')||status).textContent='A fila foi interrompida. Pacotes já importados estão salvos. '+error.message;}
+      finally{batchRunning=false;importInput.disabled=folderInput.disabled=partsInput.disabled=false;cancel.hidden=true;importInput.value='';}
+    }
     async function importPackage(source, mode) {
       const chosen = Array.from(source.files); if (!chosen.length) return;
+      if(mode==='package')return importPackages(chosen);
       importInput.disabled = folderInput.disabled = partsInput.disabled = true;
       let imported = null;
       try {
@@ -3852,16 +3921,7 @@
     // Garante que campeões do LoL já estejam disponíveis na lista de heróis
     Dados.lol().then(() => { atualizarSelectHerois(); atualizarResumoHeroiSelecionado(); }).catch(() => {});
 
-    const opcoesCol = `<option value="arquivo">Vertigo, Mangás & Clássicos</option>
-      <option value="marvel">Marvel Comics</option>
-      <option value="dc">DC Comics</option>
-      <option value="hqs-lol">HQs & Lore de League of Legends</option>
-      <option value="grega">Mitologia Grega</option>
-      <option value="nordica">Mitologia Nórdica</option>
-      <option value="egipcia">Mitologia Egípcia</option>
-      <option value="japonesa">Mitologia Japonesa</option>
-      <option value="folclore">Folclore Brasileiro</option>
-      <option value="originais">Independentes / Outros</option>`;
+    const opcoesCol = opcoesUniversoConteudo();
 
     el.innerHTML = abasBiblioteca() + `<section id="bibDevice" role="tabpanel" aria-labelledby="tabDevice">${painelLocal()}<details id="organizarSeriesLocal" class="series-organizador"></details><div id="bibLocais"></div></section><section id="bibCloud" role="tabpanel" aria-labelledby="tabCloud">
       <p class="biblioteca-ajuda">Catálogo compartilhado com os leitores. Publique aqui as HQs que devem aparecer em outras contas e dispositivos.</p>

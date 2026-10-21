@@ -288,3 +288,12 @@ test('universe organization requires admin and validates collection preservation
   assert.equal((await call('catalog','PUT',{data:{universes:nodes},revision:0})).status,200);
   assert.equal((await call('catalog','PUT',{data:{universes:[{id:'u-invalid',nome:'Invalid',cols:[],parent:''}]},revision:0})).status,400);
 });
+
+test('catalog cannot orphan comics belonging to custom universes',async()=>{
+ const T=require('../js/universe-tree'),nodes=T.defaults(T.collections.map(c=>({id:'u-'+c,nome:c,cols:[c]})));
+ backend({'/rest/v1/profiles?id=eq.reader-id&select=*':()=>Response.json([{id:'reader-id',role:'admin'}]),'/rest/v1/rpc/save_account_data':()=>Response.json(1)});
+ const data={universes:nodes,externas:[{id:'comic',colecao:'custom-new'}]};
+ assert.equal((await call('catalog','PUT',{data,revision:0})).status,400);
+ data.universes=T.change(nodes,{type:'create',id:'u-new',nome:'Novo'});
+ assert.equal((await call('catalog','PUT',{data,revision:0})).status,200);
+});

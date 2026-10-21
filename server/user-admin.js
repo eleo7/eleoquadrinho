@@ -19,7 +19,7 @@ async function usersAction(method, body, actor, query) {
   if (Object.keys(body).some(k=>!['id','nome','bio','access'].includes(k)) || !/^[a-f0-9-]{36}$/.test(body.id || '')) throw new HttpError(400, 'Campos inválidos.');
   if (typeof body.nome !== 'string' || !body.nome.trim() || body.nome.length>80 || typeof body.bio !== 'string' || body.bio.length>500) throw new HttpError(400, 'Nome ou bio inválidos.');
   const a=body.access;
-  if (!a || !['standard','alternative','initial'].includes(a.mode) || !Array.isArray(a.universes) || !Array.isArray(a.categories) || a.universes.some(x=>!Access.universes.includes(x)) || a.categories.some(x=>!Access.categories.includes(x))) throw new HttpError(400, 'Permissões inválidas.');
+  if (!a || !['standard','alternative','initial'].includes(a.mode) || !Array.isArray(a.universes) || !Array.isArray(a.categories) || a.universes.some(x=>!Access.validUniverse(x)) || a.categories.some(x=>!Access.categories.includes(x))) throw new HttpError(400, 'Permissões inválidas.');
   const rows=await request(`/rest/v1/profiles?id=eq.${body.id}&select=*`,{admin:true});
   if (!rows[0]) throw new HttpError(404,'Usuário não encontrado.');
   if (rows[0].role === 'admin' && a.mode !== 'standard') throw new HttpError(400,'O administrador mantém acesso completo.');

@@ -11,18 +11,18 @@ with sync_playwright() as p:
     assert page.locator('.ex-hero-info h2').inner_text()=='Mitologia Grega'
     page.locator('[data-ex-voltar]').click()
     assert page.locator('.ex-hero-info h2').inner_text()=='Mitologias'
-    page.locator('nav [data-ir=perfil]').click();page.locator('.universe-manager summary').click()
+    page.locator('nav [data-ir=perfil]').click();page.locator('.universe-manager').evaluate('(e)=>e.open=true')
     form=page.locator('#universeForm')
     form.locator('[name=title]').fill('Mitos reunidos')
     form.locator('button[type=submit]').click()
     page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('salvas na nuvem')")
-    page.locator('.universe-manager summary').click()
+    page.locator('.universe-manager').evaluate('(e)=>e.open=true')
     form.locator('[name=source]').select_option('u-grega');form.locator('[name=parent]').select_option(label='Mitos reunidos')
     form.locator('button[type=submit]').click()
     page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('salvas na nuvem')")
     new_id=next(n['id'] for n in catalog['data']['universes'] if n['nome']=='Mitos reunidos')
     assert next(n for n in catalog['data']['universes'] if n['id']=='u-grega')['parent']==new_id
-    page.locator('.universe-manager summary').click()
+    page.locator('.universe-manager').evaluate('(e)=>e.open=true')
     form.locator('[name=source]').select_option('u-grega');form.locator('[name=target]').select_option('u-nordica')
     page.once('dialog',lambda d:d.accept());form.locator('[data-universe-merge]').click()
     page.wait_for_function("document.querySelector('#syncMessage').textContent.includes('salvas na nuvem')")

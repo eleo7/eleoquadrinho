@@ -57,6 +57,10 @@ function validateState(data, catalog) {
       if (!Array.isArray(value) || value.length > 5000 || value.some(item => !object(item) || typeof item.id !== 'string')) throw new HttpError(400, 'Lista inválida.');
     } else if (!object(value)) throw new HttpError(400, 'Dados inválidos.');
   }
+  if(catalog){
+    const assigned=new Set((data.universes||[]).flatMap(n=>n.cols));
+    for(const key of ['externas','drive','herois','series'])for(const item of data[key]||[])if(UniverseTree.isCustom(item.colecao)&&!assigned.has(item.colecao))throw new HttpError(400,'Transfira o conteúdo antes de excluir seu universo.');
+  }
 }
 async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, private');

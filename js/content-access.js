@@ -2,11 +2,12 @@
 (function(root) {
   'use strict';
   const universes = ['lol','marvel','dc','originais','grega','nordica','egipcia','japonesa','folclore','ioruba','asteca','hindu','celta','arquivo'];
+  const validUniverse=id=>universes.includes(id)||(typeof id==='string'&&/^custom-[a-z0-9-]{1,70}$/.test(id));
   const categories = ['hq','manga','lore','historia'];
   function normalize(value) {
     const v = value || {};
     const mode = ['standard','alternative','initial'].includes(v.mode) ? v.mode : 'standard';
-    return { mode, universes: Array.isArray(v.universes) ? universes.filter(x=>v.universes.includes(x)) : [...universes], categories: Array.isArray(v.categories) ? categories.filter(x=>v.categories.includes(x)) : [...categories] };
+    return { mode, universes: Array.isArray(v.universes) ? [...new Set(v.universes.filter(validUniverse))] : [...universes], categories: Array.isArray(v.categories) ? categories.filter(x=>v.categories.includes(x)) : [...categories] };
   }
   const clean = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   function category(o) {
@@ -32,6 +33,6 @@
     if (role === 'admin' || normalize(policy).mode === 'standard') return data;
     return Object.fromEntries(Object.entries(data || {}).map(([key, list])=>[key, key === 'universes' ? list : Array.isArray(list) ? list.filter(it=>allowed(it,policy,role)) : list]));
   }
-  const api = { universes, categories, normalize, category, universe, allowed, filterCatalog };
+  const api = { validUniverse, universes, categories, normalize, category, universe, allowed, filterCatalog };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.EQContentAccess = api;
 })(globalThis);
