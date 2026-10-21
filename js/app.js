@@ -635,7 +635,7 @@
     if (inicioFiltrado()) {
       clearInterval(destaqueTimer);
       const items = [...REG.values()].filter(it => conteudoPermitido(it) && !['heroi','wiki','regiao'].includes(it.tipo));
-      $('#aba-inicio').innerHTML = `<div id="secExplorar"></div><section class="painel"><h2>Sua estante</h2><p>Conteúdo disponível para seu perfil e seus universos favoritos. Ajuste o que deseja ver no Perfil.</p><div class="grade">${items.map(it => cartao(it)).join('')}</div>${items.length ? '' : '<p>Nenhuma obra disponível nesta seleção.</p>'}</section>`;
+      $('#aba-inicio').innerHTML = `<div id="secExplorar"></div><section class="painel estante-inicio"><h2>Sua estante</h2><p>Conteúdo disponível para seu perfil e seus universos favoritos. Ajuste o que deseja ver no Perfil.</p><div class="grade">${items.map(it => cartao(it)).join('')}</div>${items.length ? '' : '<p>Nenhuma obra disponível nesta seleção.</p>'}</section>`;
       inicioPronto = false;
       renderExplorador();
       return;
