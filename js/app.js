@@ -2695,7 +2695,7 @@
       const editions=this.it?.serieId?edicoesDaSerie(this.it.serieId).filter(conteudoPermitido):[];
       const position=editions.findIndex(it=>it.id===this.it?.id);
       const next=position>=0?editions[position+1]:null;
-      nextButton.hidden=!next||this.ramificada||this.idx<n-1;
+      nextButton.hidden=!next||this.ramificada||this.idx+(this.modo==='dupla'&&this.idx>0?2:1)<n;
       if(next){nextButton.dataset.ler=next.id;nextButton.textContent='Próxima edição: '+next.titulo;}else delete nextButton.dataset.ler;
       const brightness=Math.max(40,Math.min(100,Number(prefs.hqBrightness)||100));
       $('#hqPalco').style.filter=`brightness(${brightness}%)`;
