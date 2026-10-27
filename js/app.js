@@ -3959,7 +3959,7 @@
           externas = nextExternal; drive = nextDrive;
           for (const item of changes.values()) {
             const local = await BD.pegar(item.id).catch(() => null);
-            if (local) await BD.salvar({ ...local, serieId: item.serieId, serieNome: item.serieNome, edicaoNum: item.edicaoNum, colecao: item.colecao, heroiId: item.heroiId, heroiNome: item.heroiNome }).catch(() => {});
+            if (local) await BD.organizarSeries(new Map([[item.id,item]]),account);
             reg(item);
           }
         }

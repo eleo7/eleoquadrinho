@@ -10,12 +10,16 @@ with sync_playwright() as p:
     login(page);page.locator('nav [data-ir=biblioteca]').click();page.locator('#tabDevice').click()
     page.locator('#localHQInput').set_input_files([{'name':f'HQ {n}.txt','mimeType':'text/plain','buffer':f'Conteudo {n}'.encode()} for n in [1,2,3]])
     page.wait_for_function("document.querySelectorAll('[data-device-library] .cartao').length===3")
+    page.evaluate("""()=>{const original=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(...args){if(this.name==='arquivos')throw new DOMException('Failed to write blobs (IOError)','UnknownError');return original.apply(this,args);};}""")
     panel=page.locator('#organizarSeriesLocal');panel.locator('summary').click()
     panel.locator('#seriesSelecionarLocal').click();panel.locator('#seriesMoverLocal').click()
     page.wait_for_function("[...document.querySelectorAll('#organizarSeriesLocal .series-item small')].length===3 && [...document.querySelectorAll('#organizarSeriesLocal .series-item small')].every(el=>el.textContent==='Minha Série')")
-    records=page.evaluate('''async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('eleoquadrinho:user-admin');r.onsuccess=()=>resolve(r.result)});return await new Promise(resolve=>{const r=db.transaction('arquivos').objectStore('arquivos').getAll();r.onsuccess=async()=>resolve(await Promise.all(r.result.map(async x=>({name:x.nome,series:x.serieId,number:x.edicaoNum,local:x.localOnly,text:await x.blob.text()}))))})}''')
+    records=page.evaluate("""async()=>{const lib=EQLocalLibrary.create(()=>({id:'user-admin',role:'admin'}));return await Promise.all((await lib.todos()).map(async meta=>{const x=await lib.pegar(meta.id);return {name:x.nome,series:x.serieId,number:x.edicaoNum,local:x.localOnly,text:await x.blob.text()};}));}""")
     assert sorted(r['number'] for r in records)==[1,2,3]
     assert all(r['series']=='serie:local' and r['local'] and r['text'].startswith('Conteudo') for r in records)
+    exported=page.evaluate("""async()=>{const lib=EQLocalLibrary.create(()=>({id:'user-admin',role:'admin'}));const books=await Promise.all((await lib.todos()).map(x=>lib.pegar(x.id)));const bytes=await EQHQPackage.pack(books,JSZip);const restored=await EQHQPackage.unpack(new Blob([bytes]),JSZip);return restored.map(x=>({series:x.serieNome}));}""")
+    assert all(x['series']=='Minha Série' for x in exported)
+
     panel.locator('#seriesSelecionarLocal').click()
     panel.locator('.series-item').first.drag_to(panel.locator('[data-series-target="serie:outra"]'))
     page.wait_for_function("[...document.querySelectorAll('#organizarSeriesLocal .series-item small')].every(el=>el.textContent==='Outra Série')")

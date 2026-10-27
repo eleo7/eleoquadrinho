@@ -52,7 +52,11 @@
     return {
       abrir,
       todos:()=>transaction(['metadados'],'readonly',tx=>{const r=tx.objectStore('metadados').getAll();return ()=>r.result;}),
-      pegar:id=>transaction(['arquivos'],'readonly',tx=>{const r=tx.objectStore('arquivos').get(id);return ()=>r.result;}),
+      pegar:id=>transaction(['arquivos','metadados'],'readonly',tx=>{
+        const file=tx.objectStore('arquivos').get(id),meta=tx.objectStore('metadados').get(id);
+        // Organization lives in the index: never rewrite large payloads just to move a book.
+        return ()=>file.result?{...file.result,...meta.result}:undefined;
+      }),
       salvar:book=>transaction(['arquivos','metadados'],'readwrite',tx=>{tx.objectStore('arquivos').put(book);tx.objectStore('metadados').put(metadata(book));}),
       apagar:id=>transaction(['arquivos','metadados'],'readwrite',tx=>{tx.objectStore('arquivos').delete(id);tx.objectStore('metadados').delete(id);}),
       apagarSelecionados:async(ids,id)=>{
@@ -64,14 +68,14 @@
       },
       organizarSeries:async(changes,id)=>{
         if(getUser()?.id!==id||getUser()?.role!=='admin')throw new Error('Reabra a biblioteca na conta de administrador.');
-        return transaction(['arquivos','metadados'],'readwrite',tx=>{
-          const store=tx.objectStore('arquivos'),index=tx.objectStore('metadados');
+        return transaction(['metadados'],'readwrite',tx=>{
+          const index=tx.objectStore('metadados');
           for(const item of changes.values()){
-            const r=store.get(item.id);r.onsuccess=()=>{
+            const r=index.get(item.id);r.onsuccess=()=>{
               if(!r.result||getUser()?.id!==id){tx.abort();return;}
               const {serieId,serieNome,edicaoNum,colecao,heroiId,heroiNome}=item;
               const book={...r.result,serieId,serieNome,edicaoNum,colecao,heroiId,heroiNome};
-              store.put(book);index.put(metadata(book));
+              index.put(book);
             };
           }
         });
