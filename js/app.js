@@ -2825,6 +2825,8 @@
   };
 
   function fecharLeitores() {
+    try{screen.orientation?.unlock?.();}catch{}
+    $('#hqOrientation').value='auto';
     Leitor.fechar(); LeitorHQ.fechar(); Frame.fechar();
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
@@ -3261,6 +3263,17 @@
     if (selected !== 'default') return `<span role="img" aria-label="Avatar ${esc(reward.label)}">${reward.icon}</span>`;
     return user?.avatar ? `<img src="${esc(user.avatar)}" alt="${esc(user.nome)}">` : `<span>${esc(user?.nome?.charAt(0).toUpperCase() || '👤')}</span>`;
   }
+  function painelEventosProgramados(){
+    const events=catalogSync?.data.events||[],state=estadoRecompensas(),day=EQReadingRewards.dayKey();
+    const options=Object.entries(EQReadingRewards.OPTIONS).flatMap(([kind,items])=>items.filter(o=>o.event).map(o=>({kind,...o})));
+    return `<section class="painel scheduled-events"><h3>Eventos da comunidade</h3><p>Metas de leitura ativa. Datas no horário de Brasília; o último dia está incluído. Recompensas conquistadas permanecem na conta.</p>${events.map(e=>{const seconds=state.scheduledProgress[e.id]||0;return `<article><h4>${esc(e.title)}</h4><p>${esc(e.start)} até ${esc(e.end)} · ${e.minutes} minutos · ${esc(options.find(o=>o.kind===e.kind&&o.id===e.reward)?.label||e.reward)}</p><progress max="${e.minutes*60}" value="${seconds}" aria-label="Progresso de ${esc(e.title)}"></progress><p>${seconds>=e.minutes*60?'Concluído':day<e.start?'Em breve':day>e.end?'Encerrado':Math.floor(seconds/60)+' minutos lidos'}</p>${Auth.admin?`<button class="btn btn-sec" data-cancel-event="${esc(e.id)}">Cancelar evento</button>`:''}</article>`;}).join('')||'<p>Nenhum evento programado.</p>'}${Auth.admin?`<details><summary>Programar evento</summary><form id="scheduledEventForm"><label>Título<input name="title" required maxlength="100"></label><label>Início<input name="start" type="date" required></label><label>Término<input name="end" type="date" required></label><label>Minutos de leitura ativa<input name="minutes" type="number" min="1" max="10080" value="30" required></label><label>Recompensa<select name="reward">${options.map(o=>`<option value="${o.kind}:${o.id}">${esc(o.kind+' · '+o.label)}</option>`).join('')}</select></label><p>Escolha uma recompensa do catálogo existente. Para mudar as regras, cancele e crie outro evento; o progresso começa do zero.</p><button class="btn btn-pri">Publicar evento</button><p role="status" data-event-status></p></form></details>`:''}</section>`;
+  }
+  function configurarEventosProgramados(){
+    const form=$('#scheduledEventForm'),account=Auth.usuario?.id;
+    async function save(events){if(!Auth.admin||Auth.usuario?.id!==account||catalogSync.conflict)throw new Error('Resolva a sincronização na conta de administrador.');EQScheduledEvents.validate(events);catalogSync.update({events});await catalogSync.flush();if(Auth.usuario?.id===account)renderPerfil();}
+    if(form)form.onsubmit=async e=>{e.preventDefault();const f=form.elements,[kind,reward]=f.reward.value.split(':');const event={id:'event-'+crypto.randomUUID(),title:f.title.value.trim(),start:f.start.value,end:f.end.value,minutes:Number(f.minutes.value),kind,reward};const button=form.querySelector('button');button.disabled=true;try{await save([...(catalogSync.data.events||[]),event]);toast('Evento publicado.');}catch(error){form.querySelector('[data-event-status]').textContent=error.message;}finally{button.disabled=false;}};
+    $$('[data-cancel-event]').forEach(b=>b.onclick=async()=>{if(!confirm('Cancelar este evento? Recompensas já conquistadas serão mantidas.'))return;b.disabled=true;try{await save((catalogSync.data.events||[]).filter(e=>e.id!==b.dataset.cancelEvent));}catch(error){toast(error.message);b.disabled=false;}});
+  }
   function centralNovidades(){
     const works=[...externas,...drive].filter(it=>conteudoPermitido(it)).slice().reverse().slice(0,30);
     const day=EQReadingRewards.dayKey();
@@ -3336,7 +3349,7 @@
     const seconds = EQReadingRewards.activeSeconds({ elapsed, visible: !document.hidden, focused: document.hasFocus(), reading: !!item, idle: now - rewardSession.activity });
     if (!seconds) return;
     const state = estadoRecompensas();
-    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey() });
+    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[] });
     guardarRecompensas(next);
   }, 15000);
   let rewardSearchState={query:'',filter:'all'};
@@ -3502,6 +3515,7 @@
       <nav class="profile-shortcuts" aria-label="Atalhos do perfil"><button data-profile-jump="tituloMissoes">🎯 Missões</button><button data-profile-jump="rewardSearch">✨ Recompensas</button><button data-profile-jump="userAccessPanel">⚙️ Preferências${Auth.admin?' e usuários':''}</button>${Auth.admin?'<button data-profile-jump="universeForm">🌌 Universos</button>':''}</nav>
       ${painelMissoes()}
       <div id="userAccessPanel"></div>
+      ${painelEventosProgramados()}
       ${centralNovidades()}
       ${gerenciadorUniversos()}
 
@@ -3522,6 +3536,7 @@
     });
     $$('[data-profile-jump]',el).forEach(button=>button.onclick=()=>{const target=document.getElementById(button.dataset.profileJump);if(!target)return;const details=target.closest('details');if(details)details.open=true;target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});if(!target.matches('input,select,button,a'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});});
     configurarUniversos();
+    configurarEventosProgramados();
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
     $('#btnEditarPerfil')?.addEventListener('click', () => abrirModalAuth('editar'));
@@ -3899,21 +3914,22 @@
     const selected = new Set();
     const items = (localMode ? localItems.filter(it => !externas.some(shared => shared.id === it.id) && !drive.some(shared => shared.id === it.id)) : [...externas, ...drive]).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR', { numeric: true }));
     let dragging = [], busy = false;
-    panel.innerHTML = `<summary>📁 Organizar várias HQs em uma série</summary>
+    panel.innerHTML = `<summary>📁 Organizar HQs em séries e universos</summary>
       <p>Selecione as HQs e arraste uma delas para a série desejada. No celular, escolha a série e toque em Mover selecionadas. ${localMode ? 'A organização é salva apenas neste navegador, sem upload. Cópias de HQs já publicadas são organizadas na aba Na nuvem.' : 'Apenas o catálogo da nuvem é alterado.'}</p>
-      ${series.length ? `<div class="series-destinos">${series.map(s => `<button type="button" class="btn btn-sec" data-series-target="${esc(s.id)}">📁 ${esc(s.titulo)}</button>`).join('')}</div>
+      <div class="series-destinos">${series.map(s => `<button type="button" class="btn btn-sec" data-series-target="${esc(s.id)}">📁 ${esc(s.titulo)}</button>`).join('')}</div>
       <div class="series-acoes"><label>Buscar HQ<input id="seriesBusca${localMode ? 'Local' : ''}" type="search" placeholder="Título ou série atual"></label>
       <label>Série de destino<select id="seriesDestino${localMode ? 'Local' : ''}">${series.map(s => `<option value="${esc(s.id)}">${esc(s.titulo)}</option>`).join('')}</select></label>
       <button type="button" class="btn btn-sec" id="seriesSelecionar${localMode ? 'Local' : ''}">Selecionar resultados</button><button type="button" class="btn btn-sec" id="seriesLimpar${localMode ? 'Local' : ''}">Limpar seleção</button>
-      <button type="button" class="btn btn-pri" id="seriesMover${localMode ? 'Local' : ''}" disabled>Mover selecionadas</button></div>
+      <button type="button" class="btn btn-pri" id="seriesMover${localMode ? 'Local' : ''}" disabled>Mover selecionadas</button><label>Universo de destino<select id="seriesUniverso${localMode ? 'Local' : ''}">${opcoesUniversoConteudo()}</select></label><button type="button" class="btn btn-sec" id="seriesMoverUniverso${localMode ? 'Local' : ''}">Transferir para universo</button></div>
       <p id="seriesContagem${localMode ? 'Local' : ''}" role="status">0 HQs selecionadas</p><div class="series-itens"></div>
-      <p>As HQs recebem números após a última edição da série, na ordem dos títulos. Obras que já estão nessa série permanecem como estão. Arquivos, histórico e favoritos são preservados.</p>` : '<p>Crie uma série na aba Na nuvem para começar. Vincular arquivos locais à série não publica as HQs.</p>'}`;
-    if (!series.length) return;
+      <p>As HQs recebem números após a última edição da série, na ordem dos títulos. Obras que já estão nessa série permanecem como estão. Arquivos, histórico e favoritos são preservados.</p>`;
+
     const visible = () => items.filter(it => norm(it.titulo + ' ' + (it.serieNome || '')).includes(norm(field('Busca').value)));
     function refresh() {
       $('.series-itens', panel).innerHTML = visible().map(it => `<label class="series-item" draggable="true" data-series-item="${esc(it.id)}"><input type="checkbox" ${selected.has(it.id) ? 'checked' : ''} value="${esc(it.id)}"><span>${esc(it.titulo)}<small>${esc(it.serieNome || 'Sem série')}</small></span><span aria-hidden="true">⠿</span></label>`).join('') || '<p>Nenhuma HQ encontrada.</p>';
       field('Contagem').textContent = `${selected.size} HQ(s) selecionada(s)`;
-      field('Mover').disabled = !selected.size || busy;
+      field('Mover').disabled = !selected.size || busy || !series.length;
+      field('MoverUniverso').disabled = !selected.size || busy;
     }
     async function move(target, ids) {
       if (busy || !Auth.admin || !ids.length || Auth.usuario?.id !== account) return;
@@ -3951,6 +3967,18 @@
       } catch (error) { toast('Não foi possível organizar as HQs: ' + error.message); }
       finally { busy = false; }
     }
+    field('MoverUniverso').onclick=async()=>{
+      if(busy||!Auth.admin||Auth.usuario?.id!==account)return;
+      const chosen=items.filter(it=>selected.has(it.id));if(!chosen.length)return toast('Selecione HQs.');
+      if(!localMode&&catalogSync.conflict)return toast('Resolva a sincronização antes de transferir.');
+      if(!confirm('Transferir '+chosen.length+' HQ(s) para outro universo? Vínculos anteriores com séries e personagens serão removidos. Arquivos e histórico serão mantidos.'))return;
+      busy=true;refresh();
+      try{const changes=new Map(chosen.map(it=>[it.id,{...it,colecao:field('Universo').value,serieId:'',serieNome:'',heroiId:'',heroiNome:'',edicaoNum:null}]));
+        if(localMode)await BD.organizarSeries(changes,account);
+        else{const nextExternal=externas.map(it=>changes.get(it.id)||it),nextDrive=drive.map(it=>changes.get(it.id)||it);catalogSync.update({externas:nextExternal,drive:nextDrive});await catalogSync.flush();externas=nextExternal;drive=nextDrive;}
+        if(Auth.usuario?.id!==account)return;changes.forEach(reg);inicioPronto=false;await renderBiblioteca();$('#'+panelId).open=true;toast(changes.size+' HQ(s) transferidas.');
+      }catch(error){toast(error.message);}finally{busy=false;}
+    };
     field('Busca').oninput = refresh;
     field('Selecionar').onclick = () => { visible().forEach(it => selected.add(it.id)); refresh(); };
     field('Limpar').onclick = () => { selected.clear(); refresh(); };
@@ -5728,6 +5756,7 @@
   $('#ltCorpo').addEventListener('scroll', () => Leitor.aoRolar(), { passive: true });
   $('#ltVoz').onchange = (e) => { prefs.voz = e.target.value; salvarPrefs(); };
   $('#ltVelocidade').oninput = (e) => { prefs.vel = +e.target.value; salvarPrefs(); };
+  $('#hqOrientation').onchange=async e=>{const mode=e.target.value;try{if(mode==='auto'){screen.orientation?.unlock?.();return;}if(!screen.orientation?.lock)throw new Error();if(!document.fullscreenElement)await $('#leitorHQ').requestFullscreen();await screen.orientation.lock(mode);}catch{e.target.value='auto';toast('Este navegador não permite travar a orientação. Use a rotação do dispositivo.');}};
   $('#hqBrightness').oninput=e=>{prefs.hqBrightness=Number(e.target.value);$('#hqPalco').style.filter=`brightness(${prefs.hqBrightness}%)`;salvarPrefs();};
   $('#hqGestures').onchange=e=>{prefs.hqGestures=e.target.checked;salvarPrefs();};
   $('#hqModo').onchange = (e) => { prefs.hqModo = e.target.value; salvarPrefs(); LeitorHQ.render(); };

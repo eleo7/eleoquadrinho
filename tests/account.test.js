@@ -297,3 +297,12 @@ test('catalog cannot orphan comics belonging to custom universes',async()=>{
  data.universes=T.change(nodes,{type:'create',id:'u-new',nome:'Novo'});
  assert.equal((await call('catalog','PUT',{data,revision:0})).status,200);
 });
+
+test('scheduled event catalog writes require admin and valid rewards',async()=>{
+ const R=require('../js/reading-rewards');
+ const e={id:'event-test',title:'Evento',start:'2026-10-27',end:'2026-10-28',minutes:10,kind:'frame',reward:R.OPTIONS.frame.find(o=>o.event).id};
+ backend({});assert.equal((await call('catalog','PUT',{data:{events:[e]},revision:0})).status,403);
+ backend({'/rest/v1/profiles?id=eq.reader-id&select=*':()=>Response.json([{id:'reader-id',role:'admin'}]),'/rest/v1/rpc/save_account_data':()=>Response.json(1)});
+ assert.equal((await call('catalog','PUT',{data:{events:[e]},revision:0})).status,200);
+ assert.equal((await call('catalog','PUT',{data:{events:[{...e,reward:'invented'}]},revision:0})).status,400);
+});

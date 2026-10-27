@@ -22,7 +22,12 @@ with sync_playwright() as p:
     page.reload();page.wait_for_selector('#tabDevice');page.locator('#tabDevice').click();page.locator('#organizarSeriesLocal summary').click()
     assert page.locator('#organizarSeriesLocal .series-item small').all_text_contents()==['Outra Série']*3
     assert catalog['revision']==0 and catalog['data']['externas']==[]
-    assert cloud['revision']==0 and not writes,writes
+    assert set(cloud['data']).issubset({'prefs'}),cloud['data']
+    assert not [url for url in writes if 'action=state' not in url],writes
+    panel.locator('#seriesSelecionarLocal').click();panel.locator('#seriesUniversoLocal').select_option('dc')
+    page.once('dialog',lambda d:d.accept());panel.locator('#seriesMoverUniversoLocal').click()
+    page.wait_for_function("[...document.querySelectorAll('#organizarSeriesLocal .series-item small')].every(el=>el.textContent==='Sem série')")
+    assert catalog['revision']==0
     assert not errors,errors
     print('Local batch series: persisted metadata, intact files, no upload/catalog/profile writes: PASS')
     browser.close()

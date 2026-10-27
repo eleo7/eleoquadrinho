@@ -31,7 +31,7 @@
   }
   function filterCatalog(data, policy, role) {
     if (role === 'admin' || normalize(policy).mode === 'standard') return data;
-    return Object.fromEntries(Object.entries(data || {}).map(([key, list])=>[key, key === 'universes' ? list : Array.isArray(list) ? list.filter(it=>allowed(it,policy,role)) : list]));
+    return Object.fromEntries(Object.entries(data || {}).map(([key, list])=>[key, ['universes','events'].includes(key) ? list : Array.isArray(list) ? list.filter(it=>allowed(it,policy,role)) : list]));
   }
   const api = { validUniverse, universes, categories, normalize, category, universe, allowed, filterCatalog };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.EQContentAccess = api;

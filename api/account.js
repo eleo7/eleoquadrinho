@@ -1,5 +1,7 @@
 'use strict';
 const UniverseTree = require('../js/universe-tree');
+const Scheduled = require('../js/scheduled-events');
+const Rewards = require('../js/reading-rewards');
 const Access = require('../js/content-access');
 const { communityAction } = require('../server/community');
 const { usersAction } = require('../server/user-admin');
@@ -49,9 +51,10 @@ async function profile(id) {
 }
 function object(value) { return value && typeof value === 'object' && !Array.isArray(value); }
 function validateState(data, catalog) {
-  const allowed = catalog ? ['externas', 'drive', 'herois', 'series', 'universes'] : ['historico', 'salvos', 'avaliacoes', 'finais', 'prefs'];
+  const allowed = catalog ? ['externas', 'drive', 'herois', 'series', 'universes', 'events'] : ['historico', 'salvos', 'avaliacoes', 'finais', 'prefs'];
   if (!object(data) || Object.keys(data).some(key => !allowed.includes(key))) throw new HttpError(400, 'Dados inválidos.');
   for (const [key, value] of Object.entries(data)) {
+    if(catalog&&key==='events'){try{Scheduled.validate(value);if(value.some(e=>!Rewards.OPTIONS[e.kind]?.some(o=>o.id===e.reward&&o.event)))throw new Error('Recompensa de evento inválida.');}catch(e){throw new HttpError(400,e.message);}continue;}
     if (catalog && key === 'universes') { try { UniverseTree.validate(value); } catch(e) { throw new HttpError(400, e.message); } continue; }
     if (catalog || key === 'historico') {
       if (!Array.isArray(value) || value.length > 5000 || value.some(item => !object(item) || typeof item.id !== 'string')) throw new HttpError(400, 'Lista inválida.');

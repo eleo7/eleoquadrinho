@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5b301" />
-  <link rel="stylesheet" href="css/style.css?v=community-library-20261027-39" />
+  <link rel="stylesheet" href="css/style.css?v=scheduled-20261027-40" />
 </head>
 <body>
   <button id="skipContent" class="skip-content">Ir para o conteúdo</button>
@@ -114,6 +114,7 @@
       <div class="leitor-titulo"><b id="hqTitulo"></b><small id="hqSub"></small></div>
       <button class="btn-icone hq-options-toggle" id="hqOpcoes" aria-expanded="false" aria-controls="hqControles" aria-label="Opções do leitor">⚙</button>
       <div class="leitor-acoes" id="hqControles">
+        <label>Orientação<select id="hqOrientation"><option value="auto">Automática</option><option value="portrait">Retrato</option><option value="landscape">Paisagem</option></select></label>
         <label>Brilho das páginas<input id="hqBrightness" type="range" min="40" max="100" value="100" aria-label="Brilho das páginas"></label>
         <label><input id="hqGestures" type="checkbox" checked> Virar com gestos</label>
         <div class="leitor-grupo" id="hqGrupoModo">
@@ -164,29 +165,30 @@
 
   <div id="toast"></div>
 
-  <script src="js/jszip.min.js?v=community-library-20261027-39"></script>
+  <script src="js/jszip.min.js?v=scheduled-20261027-40"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="js/data.js?v=community-library-20261027-39"></script>
-  <script src="js/fontes.js?v=community-library-20261027-39"></script>
-  <script src="js/account-client.js?v=community-library-20261027-39"></script>
-  <script src="js/package-batch.js?v=community-library-20261027-39"></script>
-  <script src="js/hq-package.js?v=community-library-20261027-39"></script>
-  <script src="js/reward-seasons.js?v=community-library-20261027-39"></script>
-  <script src="js/epic-rewards.js?v=community-library-20261027-39"></script>
-  <script src="js/reading-rewards.js?v=community-library-20261027-39"></script>
-  <script src="js/universe-tree.js?v=community-library-20261027-39"></script>
-  <script src="js/content-access.js?v=community-library-20261027-39"></script>
-  <script src="js/user-access-ui.js?v=community-library-20261027-39"></script>
-  <script src="js/cbr-import.js?v=community-library-20261027-39"></script>
-  <script src="js/reward-art.js?v=community-library-20261027-39"></script>
-  <script src="js/community.js?v=community-library-20261027-39"></script>
-  <script src="js/local-library.js?v=community-library-20261027-39"></script>
-  <script src="js/release-news.js?v=community-library-20261027-39"></script>
-  <script src="js/library-view.js?v=community-library-20261027-39"></script>
-  <script src="js/app.js?v=community-library-20261027-39"></script>
+  <script src="js/data.js?v=scheduled-20261027-40"></script>
+  <script src="js/fontes.js?v=scheduled-20261027-40"></script>
+  <script src="js/account-client.js?v=scheduled-20261027-40"></script>
+  <script src="js/package-batch.js?v=scheduled-20261027-40"></script>
+  <script src="js/hq-package.js?v=scheduled-20261027-40"></script>
+  <script src="js/reward-seasons.js?v=scheduled-20261027-40"></script>
+  <script src="js/epic-rewards.js?v=scheduled-20261027-40"></script>
+  <script src="js/scheduled-events.js?v=scheduled-20261027-40"></script>
+  <script src="js/reading-rewards.js?v=scheduled-20261027-40"></script>
+  <script src="js/universe-tree.js?v=scheduled-20261027-40"></script>
+  <script src="js/content-access.js?v=scheduled-20261027-40"></script>
+  <script src="js/user-access-ui.js?v=scheduled-20261027-40"></script>
+  <script src="js/cbr-import.js?v=scheduled-20261027-40"></script>
+  <script src="js/reward-art.js?v=scheduled-20261027-40"></script>
+  <script src="js/community.js?v=scheduled-20261027-40"></script>
+  <script src="js/local-library.js?v=scheduled-20261027-40"></script>
+  <script src="js/release-news.js?v=scheduled-20261027-40"></script>
+  <script src="js/library-view.js?v=scheduled-20261027-40"></script>
+  <script src="js/app.js?v=scheduled-20261027-40"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js?v=community-library-20261027-39', { updateViaCache: 'none' }).catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=scheduled-20261027-40', { updateViaCache: 'none' }).catch(() => {});
     }
   </script>
 </body>

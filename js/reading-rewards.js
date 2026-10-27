@@ -3,6 +3,7 @@
   'use strict';
   const Seasons = typeof module !== 'undefined' && module.exports ? require('./reward-seasons') : root.EQRewardSeasons;
   const Epic = typeof module !== 'undefined' && module.exports ? require('./epic-rewards') : root.EQEpicRewards;
+  const Scheduled=typeof module!=='undefined'&&module.exports?require('./scheduled-events'):root.EQScheduledEvents;
   const GOALS = [5, 10, 20, 30, 60];
   const MISSIONS = [
     { id: 'first_minutes', title: 'Primeiros capítulos', metric: 'seconds', target: 300, reward: 'avatar:owl', label: 'Avatar Coruja', icon: '🦉' },
@@ -74,7 +75,7 @@
   const number = (n, max = 1e9) => Number.isFinite(n) ? Math.min(max, Math.max(0, Math.floor(n))) : 0;
   function normalize(input) {
     const x = input && typeof input === 'object' ? input : {};
-    const state = { version: 1, totalSeconds: number(x.totalSeconds), goal: GOALS.includes(x.goal) ? x.goal : 10, goalDays: number(x.goalDays), books: {}, days: {}, weeklyWins: {}, eventRewards: {}, eventProgress: null, epicProgress: Epic.normalize(x.epicProgress), appearance: {} };
+    const state = { version: 1, totalSeconds: number(x.totalSeconds), goal: GOALS.includes(x.goal) ? x.goal : 10, goalDays: number(x.goalDays), books: {}, days: {}, weeklyWins: {}, eventRewards: {}, eventProgress: null, epicProgress: Epic.normalize(x.epicProgress), appearance: {}, scheduledProgress: Scheduled.normalize(x.scheduledProgress) };
     for (const [key, value] of Object.entries(x.books || {}).slice(0, 5000)) {
       if (!key.startsWith('work:') || key.length > 240 || !value || typeof value !== 'object') continue;
       state.books[key] = { seconds: number(value.seconds), progress: Math.min(1, Math.max(0, Number(value.progress) || 0)), completed: value.completed === true };
@@ -124,10 +125,12 @@
     const record = state.days[day];
     if (!record.done && record.seconds >= record.goal * 60) { record.done = true; state.goalDays++; }
   }
-  function advance(input, { id, seconds, progress, day }) {
+  function advance(input, { id, seconds, progress, day, events=[] }) {
     const state = normalize(input);
     if (typeof id !== 'string' || !id || id.length > 230 || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day+'T12:00:00Z'))) return state;
     const credit = number(seconds, 20); if (!credit) return state;
+    state.scheduledProgress=Scheduled.advance(state.scheduledProgress,events,day,credit);
+    for(const e of events)if((state.scheduledProgress[e.id]||0)>=e.minutes*60&&OPTIONS[e.kind]?.some(o=>o.id===e.reward&&o.event))state.eventRewards[e.kind+':'+e.reward]=true;
     const key = 'work:' + id;
     if (!state.books[key] && Object.keys(state.books).length >= 5000) return state;
     const book = state.books[key] ||= { seconds: 0, progress: 0, completed: false };
