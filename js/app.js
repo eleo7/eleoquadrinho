@@ -2691,6 +2691,15 @@
     },
     atualizarInfo() {
       const n = this.paginas.length;
+      const nextButton=$('#hqNextIssue');
+      const editions=this.it?.serieId?edicoesDaSerie(this.it.serieId).filter(conteudoPermitido):[];
+      const position=editions.findIndex(it=>it.id===this.it?.id);
+      const next=position>=0?editions[position+1]:null;
+      nextButton.hidden=!next||this.ramificada||this.idx<n-1;
+      if(next){nextButton.dataset.ler=next.id;nextButton.textContent='Próxima edição: '+next.titulo;}else delete nextButton.dataset.ler;
+      const brightness=Math.max(40,Math.min(100,Number(prefs.hqBrightness)||100));
+      $('#hqPalco').style.filter=`brightness(${brightness}%)`;
+      $('#hqBrightness').value=brightness;$('#hqGestures').checked=prefs.hqGestures!==false;
       const atual = this.ramificada ? this.pilha.length + 1 : this.idx + 1;
       $('#hqContador').textContent = this.ramificada ? `Página ${atual}` : `${n ? atual : 0} / ${n}`;
       const s = $('#hqSlider'); s.max = Math.max(1, n); s.value = Math.min(s.max, this.idx + 1);
@@ -3716,10 +3725,12 @@
       if(batchRunning)return;batchRunning=true;batchCancelled=false;
       importInput.disabled=folderInput.disabled=partsInput.disabled=true;cancel.hidden=false;cancel.disabled=false;
       let report;
+      const totalBytes=chosen.reduce((sum,file)=>sum+file.size,0);
+      status.textContent=`${chosen.length} pacote(s), ${(totalBytes/1048576).toFixed(1)} MB. Duplicatas serão ignoradas.`;
       try{
         report=await EQPackageBatch.run(chosen,{
           active:()=>!batchCancelled&&Auth.usuario?.id===account,
-          progress:({index,total,name})=>{status.textContent=`Pacote ${index+1} de ${total}: ${name} — conferindo e importando…`;},
+          progress:({index,total,name})=>{status.textContent=`Pacote ${index+1} de ${total} · ${(totalBytes/1048576).toFixed(1)} MB no lote: ${name} — conferindo e importando…`;},
           unpack:async file=>{if(file.name==='manifest.json')throw new Error('Pacote descompactado: use Importar pasta ou Adicionar manifest e arquivos.');if(file.size>EQHQPackage.LIMIT+12*1024*1024)throw new Error('Este pacote excede o limite de 500 MB de HQs.');return EQHQPackage.unpack(file,JSZip);},
           save:books=>BD.importarPacote(books,account)
         });
@@ -3727,7 +3738,7 @@
         if(report.results.some(r=>r.added)){await renderMinhasHQs();await renderBiblioteca();}
         const added=report.results.reduce((n,r)=>n+(r.added||0),0),duplicates=report.results.reduce((n,r)=>n+(r.duplicates||0),0);
         const target=$('#hqPackageStatus')||status;
-        const panel=target.closest('details');if(panel)panel.open=true;
+        const panel=$('.pacotes-hq');if(panel)panel.open=true;
         target.textContent=`${added} HQ(s) importadas; ${duplicates} duplicada(s) ignoradas. ${report.remaining?report.remaining+' pacote(s) não processado(s). ':''}Perfil, histórico e favoritos preservados.\n`+report.results.map(r=>r.error?`⚠ ${r.name}: ${r.code==='QuotaExceededError'?'Navegador sem espaço. Libere armazenamento e tente novamente.':r.code==='NotReadableError'||r.code==='NotFoundError'?'Não foi possível ler o arquivo. Salve o pacote na pasta Downloads ou Arquivos do celular e tente novamente.':'Não foi possível importar: '+r.error}`:`✓ ${r.name}: ${r.added} importada(s), ${r.duplicates} duplicada(s).`).join('\n');
       }catch(error){if(Auth.usuario?.id===account)($('#hqPackageStatus')||status).textContent='A fila foi interrompida. Pacotes já importados estão salvos. '+error.message;}
       finally{batchRunning=false;importInput.disabled=folderInput.disabled=partsInput.disabled=false;cancel.hidden=true;importInput.value='';}
@@ -5497,7 +5508,7 @@
     if (t.closest('#hqTela')) return alternarTela($('#leitorHQ'));
     if (t.closest('#hqMiniaturasBtn')) return $('#hqMiniaturas').classList.toggle('on');
     if (t.closest('#hqPalco') && LeitorHQ.modo !== 'rolagem' && !t.closest('button, select, input')) {
-      if (zoomHQAmpliado() || houveArrasto || toqueHQRecente(e)) return;
+      if (prefs.hqGestures===false || zoomHQAmpliado() || houveArrasto || toqueHQRecente(e)) return;
       const x = e.clientX / window.innerWidth;
       if (prefs.hqRTL) {
         if (x < 0.35) LeitorHQ.prox(); else if (x > 0.65) LeitorHQ.ant();
@@ -5691,6 +5702,8 @@
   $('#ltCorpo').addEventListener('scroll', () => Leitor.aoRolar(), { passive: true });
   $('#ltVoz').onchange = (e) => { prefs.voz = e.target.value; salvarPrefs(); };
   $('#ltVelocidade').oninput = (e) => { prefs.vel = +e.target.value; salvarPrefs(); };
+  $('#hqBrightness').oninput=e=>{prefs.hqBrightness=Number(e.target.value);$('#hqPalco').style.filter=`brightness(${prefs.hqBrightness}%)`;salvarPrefs();};
+  $('#hqGestures').onchange=e=>{prefs.hqGestures=e.target.checked;salvarPrefs();};
   $('#hqModo').onchange = (e) => { prefs.hqModo = e.target.value; salvarPrefs(); LeitorHQ.render(); };
   $('#hqSlider').oninput = (e) => LeitorHQ.ir(+e.target.value - 1);
 
@@ -5754,7 +5767,7 @@
     bloquearCliqueHQAte = performance.now() + 1000;
     if (e.touches.length) { if (gestoHQ) gestoHQ.blocked = true; return; }
     const gesture = gestoHQ; gestoHQ = null;
-    if (!gesture || gesture.blocked || zoomHQAmpliado() || LeitorHQ.modo === 'rolagem' || performance.now() - gesture.at > 700) return;
+    if (prefs.hqGestures===false || !gesture || gesture.blocked || zoomHQAmpliado() || LeitorHQ.modo === 'rolagem' || performance.now() - gesture.at > 700) return;
     const t = [...e.changedTouches].find(t => t.identifier === gesture.id); if (!t) return;
     const dx = t.clientX - gesture.x, dy = t.clientY - gesture.y;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {

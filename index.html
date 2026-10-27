@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#f5b301" />
-  <link rel="stylesheet" href="css/style.css?v=personal-shelves-20261027-37" />
+  <link rel="stylesheet" href="css/style.css?v=reader-comfort-20261027-38" />
 </head>
 <body>
   <button id="skipContent" class="skip-content">Ir para o conteúdo</button>
@@ -114,6 +114,8 @@
       <div class="leitor-titulo"><b id="hqTitulo"></b><small id="hqSub"></small></div>
       <button class="btn-icone hq-options-toggle" id="hqOpcoes" aria-expanded="false" aria-controls="hqControles" aria-label="Opções do leitor">⚙</button>
       <div class="leitor-acoes" id="hqControles">
+        <label>Brilho das páginas<input id="hqBrightness" type="range" min="40" max="100" value="100" aria-label="Brilho das páginas"></label>
+        <label><input id="hqGestures" type="checkbox" checked> Virar com gestos</label>
         <div class="leitor-grupo" id="hqGrupoModo">
           <select id="hqModo" title="Modo de leitura (Atalho: M)">
             <option value="pagina">📄 Página única</option>
@@ -141,7 +143,7 @@
     <div class="hq-palco" id="hqPalco"></div>
     <button class="hq-seta esq" id="hqAnt" title="Página anterior (←)">‹</button>
     <button class="hq-seta dir" id="hqProx" title="Próxima página (→)">›</button>
-    <div class="hq-rodape">
+    <div class="hq-rodape"><button class="btn btn-pri" id="hqNextIssue" hidden>Próxima edição</button>
       <div class="hq-slider-preview" id="hqSliderPreview"><img id="hqPreviewImg" src="" alt=""><span id="hqPreviewNum">1</span></div>
       <span id="hqContador">1 / 1</span>
       <input type="range" id="hqSlider" min="1" max="1" value="1" />
@@ -162,29 +164,29 @@
 
   <div id="toast"></div>
 
-  <script src="js/jszip.min.js?v=personal-shelves-20261027-37"></script>
+  <script src="js/jszip.min.js?v=reader-comfort-20261027-38"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="js/data.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/fontes.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/account-client.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/package-batch.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/hq-package.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/reward-seasons.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/epic-rewards.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/reading-rewards.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/universe-tree.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/content-access.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/user-access-ui.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/cbr-import.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/reward-art.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/community.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/local-library.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/release-news.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/library-view.js?v=personal-shelves-20261027-37"></script>
-  <script src="js/app.js?v=personal-shelves-20261027-37"></script>
+  <script src="js/data.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/fontes.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/account-client.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/package-batch.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/hq-package.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/reward-seasons.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/epic-rewards.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/reading-rewards.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/universe-tree.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/content-access.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/user-access-ui.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/cbr-import.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/reward-art.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/community.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/local-library.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/release-news.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/library-view.js?v=reader-comfort-20261027-38"></script>
+  <script src="js/app.js?v=reader-comfort-20261027-38"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js?v=personal-shelves-20261027-37', { updateViaCache: 'none' }).catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=reader-comfort-20261027-38', { updateViaCache: 'none' }).catch(() => {});
     }
   </script>
 </body>

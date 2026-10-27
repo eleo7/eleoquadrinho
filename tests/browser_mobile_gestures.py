@@ -29,6 +29,12 @@ with sync_playwright() as p:
         target.dispatchEvent(new TouchEvent(kind,{bubbles:true,touches:active.map(make),changedTouches:changed.map(make)}));}''',{'kind':kind,'active':active,'changed':changed})
     def swipe(start,end):
         touch('touchstart',[[1,*start]],[[1,*start]]);touch('touchmove',[[1,*end]],[[1,*end]]);touch('touchend',[],[[1,*end]])
+    page.locator('#hqOpcoes').click()
+    page.locator('#hqBrightness').fill('65');page.locator('#hqBrightness').dispatch_event('input')
+    assert '0.65' in page.locator('#hqPalco').evaluate('e=>getComputedStyle(e).filter')
+    page.locator('#hqGestures').uncheck();page.locator('#hqOpcoes').click()
+    swipe((300,300),(100,300));current(1)
+    page.locator('#hqOpcoes').click();page.locator('#hqGestures').check();page.locator('#hqOpcoes').click()
     current(1)
     page.touchscreen.tap(350,400);current(1)
     page.touchscreen.tap(350,400);current(1)
