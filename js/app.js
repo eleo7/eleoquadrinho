@@ -566,7 +566,7 @@
         <button class="acao-salvar ${salvos[it.id] ? 'on' : ''}" data-salvar="${esc(it.id)}" title="Salvar">🔖</button>
         ${h && h.prog > 0 ? `<div class="barra-prog"><i style="width:${Math.round(h.prog * 100)}%"></i></div>` : ''}
       </div>
-      <h4>${esc(it.titulo)}</h4><p>${it.localOnly ? '<span class="origem-hq">Neste dispositivo</span>' : it.storagePath ? '<span class="origem-hq">Na nuvem</span>' : ''}${esc(descTxt)}</p>
+      <h4>${esc(it.titulo)}</h4><button class="queue-toggle" data-queue="${esc(it.id)}" aria-pressed="${(prefs.readQueue||[]).includes(it.id)}">${(prefs.readQueue||[]).includes(it.id)?'✓ Na fila':'+ Quero ler'}</button><p>${it.localOnly ? '<span class="origem-hq">Neste dispositivo</span>' : it.storagePath ? '<span class="origem-hq">Na nuvem</span>' : ''}${esc(descTxt)}</p>
       ${ehMeu ? `<div class="cartao-acoes">
         ${ehSerie ? `<button type="button" data-add-serie="${esc(it.id)}" title="Adicionar nova edição nesta série">➕ +Ed</button>` : ''}
         <button type="button" data-editar="${esc(it.id)}" title="Editar ${esc(it.titulo)}">✏️ Editar</button>
@@ -635,9 +635,10 @@
     if (inicioFiltrado()) {
       clearInterval(destaqueTimer);
       const items = [...REG.values()].filter(it => conteudoPermitido(it) && !['heroi','wiki','regiao'].includes(it.tipo));
-      $('#aba-inicio').innerHTML = `<div id="secExplorar"></div><section class="painel estante-inicio"><h2>Sua estante</h2><p>Conteúdo disponível para seu perfil e seus universos favoritos. Ajuste o que deseja ver no Perfil.</p><div class="grade">${items.map(it => cartao(it)).join('')}</div>${items.length ? '' : '<p>Nenhuma obra disponível nesta seleção.</p>'}</section>`;
+      $('#aba-inicio').innerHTML = `<div id="secContinuar"></div><div id="secExplorar"></div><section class="painel estante-inicio"><h2>Sua estante</h2><p>Conteúdo disponível para seu perfil e seus universos favoritos. Ajuste o que deseja ver no Perfil.</p><div class="grade">${items.map(it => cartao(it)).join('')}</div>${items.length ? '' : '<p>Nenhuma obra disponível nesta seleção.</p>'}</section>`;
       inicioPronto = false;
       renderExplorador();
+      renderContinuar();
       return;
     }
     if (inicioPronto) { renderContinuar(); renderMinhasHQs(); return; }
@@ -651,9 +652,9 @@
     const contosMitos = CONTOS.filter(c => !c.interativa).map(c => REG.get('conto:' + c.id));
 
     el.innerHTML = `
+      <div id="secContinuar"></div>
       <div class="destaque" id="destaque"></div>
       <div id="secExplorar"></div>
-      <div id="secContinuar"></div>
       <div id="secMinhasHQs"></div>
       <div class="painel">
         <div class="secao-cab"><div><h3>Todas as Estantes</h3><small>Acesse a estante completa de cada coleção</small></div></div>
@@ -3213,9 +3214,18 @@
 
   function renderSalvos() {
     const el = $('#aba-salvos');
-    const lista = Object.values(salvos).map(s => REG.get(s.id) || reg(s));
-    el.innerHTML = `<div class="secao-cab"><div><small>Sua estante pessoal</small><h3 style="font-size:28px">Salvos <em>${lista.length} itens</em></h3></div></div>` +
-      (lista.length ? `<div class="grade">${lista.map(i => cartao(i)).join('')}</div>` : '<div class="vazio"><div class="em">🔖</div>Toque no marcador de qualquer capa para salvar aqui.</div>');
+    const queue=(prefs.readQueue||[]).map(id=>REG.get(id)||salvos[id]).filter(it=>it&&conteudoPermitido(it));
+    const groups=prefs.personalShelves||{};
+    const selected=el.dataset.shelf||'';
+    let lista=Object.values(salvos).map(s=>REG.get(s.id)||reg(s)).filter(conteudoPermitido);
+    if(selected==='queue')lista=queue;
+    else if(selected==='done')lista=historico.filter(h=>h.prog>=.99).map(h=>REG.get(h.id)||h.item).filter(it=>it&&conteudoPermitido(it));
+    else if(groups[selected])lista=groups[selected].map(id=>REG.get(id)||salvos[id]).filter(it=>it&&conteudoPermitido(it));
+    el.innerHTML=`<section class="painel"><h2>Minha biblioteca pessoal</h2><div class="personal-tools"><label>Visual<select id="personalDensity"><option value="small">Capas pequenas</option><option value="medium">Capas médias</option><option value="list">Lista</option></select></label><label>Coleção<select id="personalShelf"><option value="">Favoritas</option><option value="queue">Quero ler</option><option value="done">Concluídas</option>${Object.keys(groups).map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></label><button class="btn btn-sec" id="newPersonalShelf">Nova coleção</button></div><p>${lista.length} obras · As coleções não duplicam os arquivos.</p></section><div class="grade personal-grid">${lista.map(i=>`<div>${cartao(i)}<button class="btn btn-sec" data-personal-add="${esc(i.id)}">Organizar</button>${selected==='queue'?`<button class="btn btn-sec" data-queue-first="${esc(i.id)}">Ler primeiro</button>`:''}</div>`).join('')}</div>`;
+    const density=$('#personalDensity');density.value=localStorage.getItem('eq:shelf-density')||'small';el.dataset.density=density.value;
+    density.onchange=()=>{el.dataset.density=density.value;localStorage.setItem('eq:shelf-density',density.value);};
+    $('#personalShelf').value=selected;$('#personalShelf').onchange=e=>{el.dataset.shelf=e.target.value;renderSalvos();};
+    $('#newPersonalShelf').onclick=()=>{const name=prompt('Nome da coleção pessoal (até 40 caracteres):')?.trim();if(!name)return;if(name.length>40||['queue','done','__proto__','constructor','prototype'].includes(name))return toast('Escolha outro nome, com até 40 caracteres.');if(Object.keys(groups).length>=30)return toast('Limite de 30 coleções.');prefs.personalShelves={...groups,[name]:groups[name]||[]};salvarPrefs();el.dataset.shelf=name;renderSalvos();};
   }
 
   /* ---------------- Missões e personalização da conta ---------------- */
@@ -5326,6 +5336,22 @@
       abrirModalAuth('entrar', true);
       toast('⚠️ Crie uma conta ou faça login para acessar o EleoQuadrinho.');
       return;
+    }
+    const queueButton=t.closest('[data-queue], [data-queue-first], [data-personal-add]');
+    if(queueButton){
+      e.stopPropagation();const id=queueButton.dataset.queue||queueButton.dataset.queueFirst||queueButton.dataset.personalAdd;
+      const item=REG.get(id);if(!item||!conteudoPermitido(item))return;
+      if(queueButton.hasAttribute('data-personal-add')){
+        const groups=prefs.personalShelves||{},names=Object.keys(groups);
+        if(!names.length)return toast('Crie uma coleção pessoal primeiro.');
+        const name=prompt('Digite o nome da coleção: '+names.join(', '));if(!Object.hasOwn(groups,name))return;
+        groups[name]=groups[name].includes(id)?groups[name].filter(x=>x!==id):[...groups[name],id];prefs.personalShelves=groups;salvos[id]=snap(item);Auth.salvarDadosPerfil();toast('Coleção atualizada.');
+      }else{
+        const ids=prefs.readQueue||[];
+        prefs.readQueue=queueButton.hasAttribute('data-queue-first')?[id,...ids.filter(x=>x!==id)]:ids.includes(id)?ids.filter(x=>x!==id):[...ids,id];
+        salvos[id]=snap(item);Auth.salvarDadosPerfil();queueButton.textContent=prefs.readQueue.includes(id)?'✓ Na fila':'+ Quero ler';queueButton.setAttribute('aria-pressed',String(prefs.readQueue.includes(id)));
+      }
+      salvarPrefs();if(abaAtual==='salvos')renderSalvos();return;
     }
     const localDelete = t.closest('[data-device-library] [data-apagar]');
     if (localDelete) {
