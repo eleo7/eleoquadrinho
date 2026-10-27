@@ -24,6 +24,13 @@ test('community database: consent, private isolation, blocks, moderation, rate l
   await rpc(b,'block',{target:a});await assert.rejects(rpc(a,'feed',{channel:'private',target:b}),/friendship/);await assert.rejects(rpc(a,'remove',{target:b}),/Block owner/);await assert.rejects(rpc(a,'unblock',{target:b}),/Block owner/);assert.deepEqual(await rpc(a,'people',{query:'bob'}),[]);
   await rpc(b,'unblock',{target:a});await assert.rejects(rpc(a,'send',{channel:'private',target:b,text:'Still no consent'}),/friendship/);
   const idea=await rpc(c,'send',{channel:'suggestions',text:'Melhorar a busca'});
+  await rpc(b,'report',{id:idea.id,reason:'Conteúdo inadequado'});
+  await rpc(b,'report',{id:idea.id,reason:'Duplicada'});
+  await assert.rejects(rpc(b,'reports'),/Admin/);
+  const reports=await rpc(admin,'reports');assert.equal(reports.length,1);
+  await assert.rejects(rpc(b,'resolve-report',{id:reports[0].id}),/Admin/);
+  await assert.rejects(rpc(b,'report',{id:privateMessage.id,reason:'Privada'}),/Not allowed/);
+  await rpc(admin,'resolve-report',{id:reports[0].id});assert.deepEqual(await rpc(admin,'reports'),[]);
   await assert.rejects(rpc(b,'status',{id:idea.id,status:'done'}),/Admin/);
   await rpc(admin,'status',{id:idea.id,status:'planned'});assert.equal((await rpc(b,'feed',{channel:'suggestions'}))[0].status,'planned');
   await assert.rejects(rpc(b,'delete',{id:idea.id}),/Not allowed/);await rpc(admin,'delete',{id:idea.id});assert.deepEqual(await rpc(b,'feed',{channel:'suggestions'}),[]);

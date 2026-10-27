@@ -25,6 +25,17 @@ create table if not exists public.community_messages (
 create index if not exists community_feed on public.community_messages(channel,id desc);
 create index if not exists community_inbox on public.community_messages(recipient,sender,id desc);
 create index if not exists community_sender on public.community_messages(sender,created_at desc);
+create table if not exists public.community_reports (
+  id bigint generated always as identity primary key,
+  reporter uuid not null references public.profiles(id) on delete cascade,
+  message_id bigint not null references public.community_messages(id) on delete cascade,
+  reason text not null check(char_length(reason) between 3 and 500),
+  resolved boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique(reporter,message_id)
+);
+alter table public.community_reports enable row level security;
+revoke all on public.community_reports from public, anon, authenticated;
 create table if not exists public.community_limits (
   actor uuid not null references public.profiles(id) on delete cascade,
   kind text not null check(kind in ('send','request')),
@@ -63,6 +74,28 @@ declare
 begin
   select role = 'admin' into is_admin from public.profiles where id = actor;
   if is_admin is null then raise exception 'Account required'; end if;
+  if operation='report' then
+    message_id := (payload->>'id')::bigint;
+    select * into message from public.community_messages where id=message_id;
+    if message.id is null or message.channel='private' or message.sender=actor then raise exception 'Not allowed'; end if;
+    content := trim(coalesce(payload->>'reason',''));
+    if length(content)<3 or length(content)>500 then raise exception 'Invalid reason'; end if;
+    insert into public.community_reports(reporter,message_id,reason) values(actor,message_id,content) on conflict on constraint community_reports_reporter_message_id_key do nothing;
+    return '{"ok":true}'::jsonb;
+  end if;
+  if operation='reports' then
+    if not is_admin then raise exception 'Admin required'; end if;
+    select coalesce(jsonb_agg(to_jsonb(r)),'[]') into result from
+      (select r.id::text,r.message_id::text,r.reason,r.created_at,m.body,p.login
+       from public.community_reports r join public.community_messages m on m.id=r.message_id join public.profiles p on p.id=m.sender
+       where not r.resolved order by r.created_at limit 100) r;
+    return result;
+  end if;
+  if operation='resolve-report' then
+    if not is_admin then raise exception 'Admin required'; end if;
+    update public.community_reports set resolved=true where id=(payload->>'id')::bigint;
+    return '{"ok":true}'::jsonb;
+  end if;
   if operation = 'people' then
     term := lower(trim(coalesce(payload->>'query','')));
     if length(term) < 3 or length(term) > 32 or term !~ '^[a-z0-9_-]+$' then return '[]'::jsonb; end if;

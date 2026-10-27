@@ -45,7 +45,8 @@ with sync_playwright() as p:
     assert bp.evaluate('document.documentElement.scrollWidth<=innerWidth')
     page.screenshot(path='/tmp/eleo-community-mobile.png',full_page=True)
     page.locator('nav [data-ir=inicio]').click();page.wait_for_function("document.querySelector('#aba-comunidade').textContent===''")
-    assert cloud['revision']==0 and catalog['revision']==0
+    assert catalog['revision']==0
+    assert set(cloud['data']).issubset({'prefs'}),cloud['data'] # Launch preferences may sync; messages must never enter account backups.
     assert not errors,errors
     print('Community: friend request/accept, private cross-device messages, suggestions, XSS escaping, drafts, cleanup and 320px/390px layout: PASS')
     browser.close()

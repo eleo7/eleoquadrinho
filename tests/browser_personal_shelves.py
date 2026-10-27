@@ -14,5 +14,12 @@ with sync_playwright() as p:
     page.once('dialog',lambda d:d.accept('Minhas sagas'));page.locator('[data-personal-add="ext:test"]').click()
     page.locator('#personalShelf').select_option('Minhas sagas')
     assert page.locator('.personal-grid .cartao').count()==1
+    page.locator('#personalSelectAll').click()
+    page.once('dialog',lambda d:d.accept());page.locator('#personalReadBatch').click()
+    page.locator('#personalShelf').select_option('done')
+    assert page.locator('.personal-grid .cartao').count()==1
+    page.locator('nav [data-ir=perfil]').click()
+    page.locator('.news-center summary').click()
+    assert page.locator('.news-center').inner_text().find('Obra de teste')>=0
     assert not errors,errors
     print('Personal queue, collections and layout: PASS');b.close()

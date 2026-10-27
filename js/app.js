@@ -3230,7 +3230,21 @@
     if(selected==='queue')lista=queue;
     else if(selected==='done')lista=historico.filter(h=>h.prog>=.99).map(h=>REG.get(h.id)||h.item).filter(it=>it&&conteudoPermitido(it));
     else if(groups[selected])lista=groups[selected].map(id=>REG.get(id)||salvos[id]).filter(it=>it&&conteudoPermitido(it));
-    el.innerHTML=`<section class="painel"><h2>Minha biblioteca pessoal</h2><div class="personal-tools"><label>Visual<select id="personalDensity"><option value="small">Capas pequenas</option><option value="medium">Capas médias</option><option value="list">Lista</option></select></label><label>Coleção<select id="personalShelf"><option value="">Favoritas</option><option value="queue">Quero ler</option><option value="done">Concluídas</option>${Object.keys(groups).map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></label><button class="btn btn-sec" id="newPersonalShelf">Nova coleção</button></div><p>${lista.length} obras · As coleções não duplicam os arquivos.</p></section><div class="grade personal-grid">${lista.map(i=>`<div>${cartao(i)}<button class="btn btn-sec" data-personal-add="${esc(i.id)}">Organizar</button>${selected==='queue'?`<button class="btn btn-sec" data-queue-first="${esc(i.id)}">Ler primeiro</button>`:''}</div>`).join('')}</div>`;
+    el.innerHTML=`<section class="painel"><h2>Minha biblioteca pessoal</h2><div class="personal-tools"><label>Visual<select id="personalDensity"><option value="small">Capas pequenas</option><option value="medium">Capas médias</option><option value="list">Lista</option></select></label><label>Coleção<select id="personalShelf"><option value="">Favoritas</option><option value="queue">Quero ler</option><option value="done">Concluídas</option>${Object.keys(groups).map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></label><button class="btn btn-sec" id="newPersonalShelf">Nova coleção</button></div><p>${lista.length} obras · As coleções não duplicam os arquivos.</p><div class="personal-tools"><button class="btn btn-sec" id="personalSelectAll">Selecionar todas</button><button class="btn btn-sec" id="personalClearAll">Limpar seleção</button><button class="btn btn-sec" id="personalMoveBatch">Adicionar à coleção</button><button class="btn btn-sec" id="personalReadBatch">Marcar como lidas</button></div><p id="personalBatchStatus" role="status"></p></section><div class="grade personal-grid">${lista.map(i=>`<div><label class="personal-select"><input type="checkbox" data-personal-check value="${esc(i.id)}"> Selecionar</label>${cartao(i)}<button class="btn btn-sec" data-personal-add="${esc(i.id)}">Organizar</button>${selected==='queue'?`<button class="btn btn-sec" data-queue-first="${esc(i.id)}">Ler primeiro</button>`:''}</div>`).join('')}</div>`;
+    const checks=()=>[...el.querySelectorAll('[data-personal-check]')];
+    $('#personalSelectAll').onclick=()=>checks().forEach(c=>c.checked=true);
+    $('#personalClearAll').onclick=()=>checks().forEach(c=>c.checked=false);
+    function batchItems(){return lista.filter(it=>checks().some(c=>c.checked&&c.value===it.id));}
+    $('#personalMoveBatch').onclick=()=>{
+      const items=batchItems();if(!items.length)return toast('Selecione pelo menos uma HQ.');
+      const name=prompt('Coleção de destino: '+Object.keys(groups).join(', '));if(!Object.hasOwn(groups,name))return toast('Crie ou escolha uma coleção existente.');
+      groups[name]=[...new Set([...groups[name],...items.map(it=>it.id)])];prefs.personalShelves=groups;salvarPrefs();$('#personalBatchStatus').textContent=items.length+' HQ(s) adicionadas à coleção '+name+'.';
+    };
+    $('#personalReadBatch').onclick=()=>{
+      const items=batchItems();if(!items.length)return toast('Selecione pelo menos uma HQ.');
+      if(!confirm('Marcar '+items.length+' HQ(s) como lidas? Isto atualiza o histórico, sem conceder XP ou recompensas de leitura.'))return;
+      const ids=new Set(items.map(it=>it.id));historico=[...items.map(it=>({id:it.id,item:snap(it),prog:1,rotulo:'Marcada como lida',quando:Date.now()})),...historico.filter(h=>!ids.has(h.id))].slice(0,80);Auth.salvarDadosPerfil();renderSalvos();
+    };
     const density=$('#personalDensity');density.value=localStorage.getItem('eq:shelf-density')||'small';el.dataset.density=density.value;
     density.onchange=()=>{el.dataset.density=density.value;localStorage.setItem('eq:shelf-density',density.value);};
     $('#personalShelf').value=selected;$('#personalShelf').onchange=e=>{el.dataset.shelf=e.target.value;renderSalvos();};
@@ -3246,6 +3260,12 @@
     if (reward.art) return `<span class="reward-face" role="img" aria-label="Avatar ${esc(reward.label)}">${EQRewardArt.avatar(selected)}</span>`;
     if (selected !== 'default') return `<span role="img" aria-label="Avatar ${esc(reward.label)}">${reward.icon}</span>`;
     return user?.avatar ? `<img src="${esc(user.avatar)}" alt="${esc(user.nome)}">` : `<span>${esc(user?.nome?.charAt(0).toUpperCase() || '👤')}</span>`;
+  }
+  function centralNovidades(){
+    const works=[...externas,...drive].filter(it=>conteudoPermitido(it)).slice().reverse().slice(0,30);
+    const day=EQReadingRewards.dayKey();
+    const rewards=Object.entries(EQReadingRewards.OPTIONS).flatMap(([kind,items])=>items.filter(o=>o.epic&&(!o.release||o.release<=day)).map(o=>({...o,kind}))).slice(-24);
+    return `<details class="painel news-center"><summary>🔔 Central de novidades</summary><p>Consulte o catálogo e as recompensas disponíveis para sua conta, mesmo depois de fechar os avisos iniciais.</p><h3>HQs e histórias do catálogo</h3><div class="news-center-list">${works.map(it=>`<button class="btn btn-sec" data-ler="${esc(it.id)}">${esc(it.titulo)}</button>`).join('')||'<p>Ainda não há obras nesta seleção.</p>'}</div><h3>Recompensas épicas</h3><div class="news-center-list">${rewards.map(o=>`<span>${esc(o.label)}</span>`).join('')}</div><button class="btn btn-pri" data-news-missions>Ver missões e regras</button></details>`;
   }
   function mostrarNovidades() {
     $('#releaseNews')?.remove();
@@ -3482,6 +3502,7 @@
       <nav class="profile-shortcuts" aria-label="Atalhos do perfil"><button data-profile-jump="tituloMissoes">🎯 Missões</button><button data-profile-jump="rewardSearch">✨ Recompensas</button><button data-profile-jump="userAccessPanel">⚙️ Preferências${Auth.admin?' e usuários':''}</button>${Auth.admin?'<button data-profile-jump="universeForm">🌌 Universos</button>':''}</nav>
       ${painelMissoes()}
       <div id="userAccessPanel"></div>
+      ${centralNovidades()}
       ${gerenciadorUniversos()}
 
       ${historico.length ? `
@@ -3618,7 +3639,7 @@
       <p>Arquivos ficam só nesta conta e neste navegador, sem ocupar a nuvem. Mantenha um backup: limpar os dados do navegador pode apagá-los.</p>
       <label class="btn btn-sec">Guardar HQs apenas neste navegador<input id="localHQInput" type="file" accept=".pdf,.cbz,.cbr,.rar,.zip,.epub,.txt,.md,image/*" multiple hidden></label>
       <p>CBR/RAR é convertido para CBZ no navegador, preservando as imagens. Arquivos com senha ou divididos em volumes não são suportados.</p>
-      <p id="localSpace" role="status"></p>
+      <p id="localSpace" role="status"></p><button class="btn btn-sec" id="localBackupShortcut">Preparar backup das HQs locais</button>
       <details class="pacotes-hq"><summary>Transferir HQs entre dispositivos</summary>
       <p>Selecione arquivos salvos neste navegador. O pacote inclui HQs, capas e informações, sem perfil, histórico ou favoritos. Até 500 MB por pacote; prefira lotes pequenos no celular.</p>
       <label for="hqPackageSearch">Pesquisar HQs para transferir</label>
@@ -3648,9 +3669,12 @@
         await Biblioteca.importar(input.files, { local: true, heroiId: '', heroiNome: '', serieId: '', serieNome: '', colecao: 'arquivo' });
       } finally { input.disabled = false; input.value = ''; }
     };
+    const storageAccount=Auth.usuario?.id;
+    $('#localBackupShortcut').onclick=()=>{const panel=$('.pacotes-hq');panel.open=true;panel.scrollIntoView({block:'start'});$('#hqPackageSelectResults').click();toast('Confira a seleção e toque em Baixar pacote. Para mais de 500 MB, use lotes menores.');};
     navigator.storage?.estimate?.().then(({ usage, quota }) => {
+      if(Auth.usuario?.id!==storageAccount)return;
       const el = $('#localSpace');
-      if (el) el.textContent = `Uso aproximado deste site no navegador: ${Math.ceil((usage || 0) / 1048576)} MB de ${Math.floor((quota || 0) / 1048576)} MB disponíveis para o site.`;
+      if(el){const ratio=quota>0?(usage||0)/quota:0;el.dataset.warning=String(ratio>=.8);el.textContent=quota>0?`Armazenamento local deste site: ${Math.ceil((usage||0)/1048576)} MB usados de aproximadamente ${Math.floor(quota/1048576)} MB (${Math.round(ratio*100)}%). ${ratio>=.9?'Espaço crítico: faça backup e remova cópias locais antes de importar mais.':ratio>=.8?'Espaço acabando: prepare um backup das suas HQs.':'A cota é estimada pelo navegador e pode variar.'}`:'Este navegador não informou a cota. Mantenha um backup das HQs locais.';}
     }).catch(() => {});
   }
   function configurarPacotes() {
@@ -3795,6 +3819,7 @@
       el.textContent = `Nuvem: ${(s.used / 1000000).toFixed(1)} MB usados de ${(s.limit / 1000000).toFixed(0)} MB. ` +
         (s.reserved ? `${(s.reserved / 1000000).toFixed(1)} MB reservados para envios em andamento. ` : '') +
         (s.blocked ? 'Novos envios bloqueados. Use a biblioteca neste navegador.' : s.warning ? 'Atenção: espaço acabando. Os envios param antes de ultrapassar 90% da cota.' : 'Aviso em 80%; bloqueio de novos envios em 90%.');
+      el.dataset.warning=String(s.warning||s.blocked);
       const button = $('#btnPublicarLocais');
       if (button) button.disabled = s.blocked;
     } catch { el.textContent = 'Não foi possível verificar o espaço da nuvem. Você pode guardar HQs apenas neste navegador.'; }
@@ -5364,6 +5389,7 @@
       }
       salvarPrefs();if(abaAtual==='salvos')renderSalvos();return;
     }
+    if(t.closest('[data-news-missions]')){$('#tituloMissoes')?.scrollIntoView({block:'start'});return;}
     const localDelete = t.closest('[data-device-library] [data-apagar]');
     if (localDelete) {
       if (!Auth.admin) return;

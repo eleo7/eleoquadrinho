@@ -1,6 +1,6 @@
 'use strict';
 const { HttpError, request } = require('./backend');
-const operations = new Set(['people','friends','request','accept','remove','block','unblock','feed','send','delete','status']);
+const operations = new Set(['people','friends','request','accept','remove','block','unblock','feed','send','delete','status','report','reports','resolve-report']);
 async function communityAction(method, body, user) {
   if (method !== 'POST') throw new HttpError(405, 'Método não permitido.');
   if (!operations.has(body.operation)) throw new HttpError(400, 'Operação inválida.');
@@ -11,6 +11,7 @@ async function communityAction(method, body, user) {
       body: { actor: user.id, operation: body.operation, payload } }) };
   } catch (error) {
     if (error.providerCode === 'PGRST202') throw new HttpError(503, 'A Comunidade aguarda ativação no banco. O administrador precisa executar o script community.sql no Supabase.');
+    if (['report','reports','resolve-report'].includes(body.operation) && ['Unknown operation'].includes(error.providerMessage)) throw new HttpError(503, 'Atualize o banco executando o community.sql disponível na seção Configuração inicial do banco.');
     const messages = { 'Accepted friendship required':'O chat privado exige uma amizade aceita e sem bloqueio.', 'Recipient required':'Somente quem recebeu o pedido pode aceitá-lo.', 'Relationship already exists':'Já existe um pedido ou vínculo com esse usuário.', 'Wait before sending again':'Aguarde 3 segundos antes de enviar outra mensagem.', 'Daily message limit':'Você atingiu o limite de 500 mensagens hoje.', 'Daily request limit':'Você atingiu o limite de 30 pedidos de amizade hoje.', 'Not allowed':'Você não pode excluir essa mensagem.', 'Admin required':'Somente o administrador pode alterar o status da sugestão.' };
     if (messages[error.providerMessage]) throw new HttpError(400, messages[error.providerMessage]);
     if (error.status === 400) throw new HttpError(400, 'Operação não concluída. Confira a amizade e os dados; aguarde alguns segundos entre envios. Se a comunidade ainda não foi ativada, peça ao administrador para configurar o banco.');
