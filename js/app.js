@@ -3603,15 +3603,18 @@
     if (aba === 'perfis') aba = 'entrar';
     const edit = aba === 'editar' && !!u;
     const signup = aba === 'cadastro';
+    modal.classList.toggle('auth-with-cover',!edit);
     authAvatarSelecionado = u?.avatar || AVATARES_PADRAO[0].url;
     modal.classList.toggle('auth-obrigatorio', !u || obrigatorio);
     modal.setAttribute('aria-hidden', 'false');
     modal.classList.add('aberta');
     document.body.style.overflow = 'hidden';
     conteudo.innerHTML = `
+      ${!edit?'<figure class="auth-cover"><img src="assets/login-cover.png" width="1024" height="1536" fetchpriority="high" alt="EleoQuadrinho: heróis em uma cidade futurista ilustrada em quadrinhos"><figcaption>Sua próxima aventura começa aqui.</figcaption></figure>':''}
+      <div class="auth-fields">
       <h2>${edit ? 'Editar meu perfil' : signup ? 'Criar conta de leitor' : 'Entrar no EleoQuadrinho'}</h2>
       <p id="authNotice" role="status" class="ajuda">${edit ? 'Seu perfil acompanha sua conta.' : 'Acesse seus dados de leitura em qualquer dispositivo.'}</p>
-      ${!edit ? `<div class="auth-abas"><button type="button" data-conta-aba="entrar">Entrar</button><button type="button" data-conta-aba="cadastro">Criar conta</button></div>` : ''}
+      ${!edit ? `<div class="auth-abas"><button type="button" data-conta-aba="entrar" class="${!signup?'ativo':''}" aria-pressed="${!signup}">Entrar</button><button type="button" data-conta-aba="cadastro" class="${signup?'ativo':''}" aria-pressed="${signup}">Criar conta</button></div>` : ''}
       <form class="auth-form" id="formConta">
         ${signup || edit ? `<label for="authNomeInput">Nome ou apelido</label><input id="authNomeInput" maxlength="80" required value="${esc(edit ? u.nome : '')}">` : ''}
         ${!edit ? `<label for="authLoginInput">${signup ? 'Login (letras, números, _ ou -)' : 'Login ou e-mail'}</label><input id="authLoginInput" autocomplete="username" required ${signup ? 'pattern="[A-Za-z0-9_-]{3,32}" maxlength="32"' : 'maxlength="254"'}>` : ''}
@@ -3620,7 +3623,7 @@
         ${signup ? '<p class="ajuda">Use pelo menos 10 caracteres. Espaços fazem parte da senha. Novas contas têm permissão de leitor.</p>' : ''}
         ${edit ? `<label for="authBioInput">Bio</label><input id="authBioInput" maxlength="500" value="${esc(u.bio)}"><label for="authFotoInput">Foto do perfil</label><input id="authFotoInput" type="file" accept="image/*">` : ''}
         <button type="submit" class="btn btn-pri">${edit ? 'Salvar perfil' : signup ? 'Criar conta' : 'Entrar'}</button>
-      </form>`;
+      </form></div>`;
     $$('[data-conta-aba]', conteudo).forEach(button => button.onclick = () => abrirModalAuth(button.dataset.contaAba));
     $('#authFotoInput')?.addEventListener('change', async e => {
       const file = e.target.files[0];
