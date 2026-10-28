@@ -1,12 +1,13 @@
 from pathlib import Path
 exec((Path(__file__).parent/'browser_smoke.py').read_text().split('\nwith sync_playwright() as p:')[0])
 offers=[];requests=[];signals={}
+catalog['data']['series']=[{'id':'series:empty','tipo':'serie-pasta','titulo':'Série sem edições no leitor','colecao':'originais'}]
 def transfers(ctx,role):
  def route(r):
   body=r.request.post_data_json;op=body['operation'];x=body.get('payload',{});data={}
   if op=='offers':data=offers
   elif op=='publish':offers.append(dict(x,id='offer-1',owner='user-admin'));data=offers[-1]
-  elif op=='request':requests.append(dict(id='request-1',offer_id=x['offer'],reader='user-reader',owner='user-admin',status='pending',title=offers[0]['title'],items=offers[0]['items'],nome='Leitor',login='reader'))
+  elif op in ['request','catalog-request']:requests.append(dict(id='request-1',offer_id=x.get('offer','offer-1'),reader='user-reader',owner='user-admin',status='pending',title=offers[0]['title'],items=([{'id':'series:empty','titulo':'Série','requestSeries':True}] if op=='catalog-request' else offers[0]['items']),nome='Leitor',login='reader'))
   elif op=='list':data=requests
   elif op=='accept':requests[0]['status']='accepted';signals.clear()
   elif op=='complete':requests[0]['status']='completed'
@@ -24,8 +25,8 @@ with sync_playwright() as p:
  a=admin.new_page();u=reader.new_page();errors=[]
  for page in [a,u]:page.on('pageerror',lambda e:errors.append(str(e)))
  login(a);a.locator('nav [data-ir=biblioteca]').click();a.locator('#tabDevice').click();a.locator('#localHQInput').set_input_files({'name':'HQ direta.txt','mimeType':'text/plain','buffer':b'Conteudo enviado diretamente.'});a.wait_for_selector('[data-device-library] .cartao')
- a.locator('nav [data-ir=perfil]').click();a.locator('.direct-transfer details summary').click();a.locator('[data-offer-items] option').wait_for(state='attached');bookid=a.locator('[data-offer-items] option').first.get_attribute('value');a.locator('[data-offer-items]').select_option(bookid);a.locator('[data-offer-publish]').click();a.wait_for_selector('[data-transfer-offers] article')
- login(u);u.wait_for_selector('#transferShelf [data-offer-open]');u.set_viewport_size({'width':390,'height':844});assert u.evaluate('document.documentElement.scrollWidth<=innerWidth');u.locator('[data-offer-open]').first.click();u.locator('[data-confirm-request]').click();u.wait_for_function("document.querySelector('[data-offer-status]').textContent.includes('Pedido enviado')");u.locator('.transfer-dialog-close').click();u.locator('#transferNotice').click()
+ a.locator('nav [data-ir=perfil]').click();a.locator('.direct-transfer details summary').click();a.locator('[data-offer-items] option').wait_for(state='attached');bookid=a.locator('[data-offer-items] option').first.get_attribute('value');a.evaluate("async id=>{const lib=EQLocalLibrary.create(()=>({id:'user-admin',role:'admin'}));await lib.organizarSeries([{id,serieId:'series:empty',serieNome:'Série'}],'user-admin');}",bookid);a.locator('[data-offer-items]').select_option(bookid);a.locator('[data-offer-publish]').click();a.wait_for_selector('[data-transfer-offers] article')
+ login(u);u.wait_for_selector('#transferShelf [data-offer-open]');u.set_viewport_size({'width':390,'height':844});assert u.evaluate('document.documentElement.scrollWidth<=innerWidth');u.locator('#secMinhasHQs [data-id=\"series:empty\"]').first.click();u.locator('[data-request-catalog]').click();u.wait_for_function("document.querySelector('[data-request-catalog]').textContent.includes('Pedido enviado')");u.keyboard.press('Escape');u.locator('#transferNotice').click()
  a.locator('[data-transfer-refresh]').click();a.locator('[data-request-reader]').select_option('user-reader');a.locator('[data-transfer-send]').click()
  a.wait_for_function("document.querySelector('[data-transfer-status]').textContent.includes('Pedido aprovado')",timeout=40000)
  u.locator('[data-transfer-refresh]').click();u.locator('[data-transfer-receive]').click()

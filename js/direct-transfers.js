@@ -40,7 +40,7 @@ async function session(row,sender){
  const timeout=connectionTimer=setTimeout(()=>fail(new Error('Tempo de conexão esgotado. Ambos devem abrir o pedido; algumas redes bloqueiam conexão direta.')),120000);
  try{
  if(sender){
-  notice('Preparando pacote local…');const books=[];for(const item of row.items){const book=await config.library.pegar(item.id);guard();if(!book||(!book.blob&&!book.blobs?.length))throw new Error('A HQ '+item.titulo+' não está neste dispositivo. Abra o pedido no dispositivo que possui os arquivos.');books.push(book);}
+  notice('Preparando pacote local…');const books=[],items=[];for(const item of row.items){if(item.requestSeries){const local=await config.library.todos();guard();const editions=local.filter(book=>book.serieId===item.id&&book.hasFile);if(!editions.length)throw new Error('As edições desta série não estão neste dispositivo. Abra o pedido onde os arquivos estão guardados.');items.push(...editions);}else items.push(item);}for(const item of [...new Map(items.map(it=>[it.id,it])).values()]){const book=await config.library.pegar(item.id);guard();if(!book||(!book.blob&&!book.blobs?.length))throw new Error('A HQ '+item.titulo+' não está neste dispositivo. Abra o pedido no dispositivo que possui os arquivos.');books.push(book);}
   const bytes=await EQHQPackage.pack(books,JSZip);guard();await call('accept',{id:row.id});guard();
   const channel=connection.createDataChannel('hq-package',{ordered:true});channel.binaryType='arraybuffer';channel.bufferedAmountLowThreshold=65536;
   channel.onopen=async()=>{clearTimeout(timeout);try{channel.send(JSON.stringify({size:bytes.byteLength}));for(let offset=0;offset<bytes.byteLength;offset+=16384){guard();while(channel.bufferedAmount>262144){await pause(30);guard();if(channel.readyState!=='open')throw new Error('Conexão fechada.');}channel.send(bytes.slice(offset,offset+16384));notice('Enviando: '+Math.round(Math.min(bytes.byteLength,offset+16384)/bytes.byteLength*100)+'%');}channel.send('END');notice('Arquivo enviado. Aguardando confirmação da importação…');}catch(e){fail(e);}};
@@ -78,5 +78,10 @@ async function mount(el){
   else if(b.hasAttribute('data-offer-publish')){const ids=new Set([...el.querySelector('[data-offer-items]').selectedOptions].map(o=>o.value)),items=local.filter(x=>ids.has(x.id));if(!items.length)throw new Error('Selecione HQs.');if(items.length>200||items.reduce((n,it)=>n+(it.fileBytes||0),0)>EQHQPackage.LIMIT)throw new Error('Divida a série em ofertas de até 200 HQs e 500 MB.');const title=el.querySelector('[data-offer-title]').value.trim()||items[0].nome;await call('publish',{title,cover:items[0].capa||'',items:items.map(x=>({id:x.id,titulo:x.nome,colecao:x.colecao||'arquivo',formatoObra:x.formatoObra||(['txt','epub'].includes(x.formato)?'Lore':'HQ'),formato:x.formato}))});await mount(el);home();notice('Capas publicadas. Os arquivos continuam neste dispositivo.');}
  }catch(err){notice(err.message);}finally{b.disabled=false;}};
 }
-root.EQDirectTransfers={start,dispose,mount,home};
+async function requestCatalog(id,button){
+ if(!config)return;const owner=config;button.disabled=true;const label=button.textContent;
+ try{await call('catalog-request',{id});if(config!==owner)return;button.textContent='✓ Pedido enviado ao administrador';await refresh();}
+ catch(e){if(config===owner){button.textContent=label;button.disabled=false;let status=button.parentElement.querySelector('[data-catalog-request-error]');if(!status){status=document.createElement('p');status.dataset.catalogRequestError='';status.setAttribute('role','status');button.after(status);}status.textContent=e.message;}}
+}
+root.EQDirectTransfers={start,dispose,mount,home,requestCatalog};
 })(globalThis);

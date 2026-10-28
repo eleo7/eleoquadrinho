@@ -19,3 +19,5 @@ Limites: 200 HQs e 500 MB por oferta/pacote, 30 pedidos ativos por leitor, 200 o
 O recurso usa STUN público para descobrir a rota, sem serviço TURN de retransmissão. Certas redes corporativas, operadoras ou navegadores podem bloquear a conexão direta; nesses casos, tente outra rede ou use o compartilhamento de pacote já existente. Não há notificação push quando o site está fechado. As duas pontas precisam ficar online.
 
 O ambiente Codex bloqueia WebRTC UDP por política do Chromium. Foram validados o banco, permissões e o fluxo completo de solicitação/importação com transporte RTC simulado; uma transferência real entre redes externas ainda precisa ser validada após ativar o SQL.
+
+Também é possível solicitar diretamente nos detalhes de séries e HQs do catálogo compartilhado. O botão funciona mesmo quando as edições só estão no dispositivo do administrador. Sem uma oferta existente, o pedido é encaminhado ao primeiro administrador cadastrado. No envio da série, o sistema busca os arquivos locais pelo identificador da subpasta. Não é necessário executar novamente o SQL para esse fluxo.

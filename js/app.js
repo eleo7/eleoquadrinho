@@ -1549,6 +1549,7 @@
         <h2>${esc(it.titulo)}</h2><h3>${esc(it.sub || '')}</h3>
         <div class="tags">${tags.filter(Boolean).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
         <div class="botoes">${botoes}
+          ${!Auth.admin && ['serie-pasta','ext-hq','drive'].includes(it.tipo) ? `<button class="btn btn-pri" data-request-catalog="${esc(it.id)}">📨 Solicitar ${it.tipo==='serie-pasta'?'série':'HQ'} ao administrador</button>` : ''}
           <button class="btn btn-sec ${salvos[it.id] ? 'ativo' : ''}" data-salvar="${esc(it.id)}">🔖 ${salvos[it.id] ? 'Salvo' : 'Salvar'}</button>
         </div>
       </div></div>`;
@@ -5871,6 +5872,8 @@
       return abrirLeitura(ler.dataset.ler, ler.dataset.cap != null ? +ler.dataset.cap : undefined);
     }
     const colecao = t.closest('[data-colecao]'); if (colecao) { fecharCamada(); if (leitorAberto()) fecharLeitores(); return ir('colecao/' + colecao.dataset.colecao); }
+    const requestCard = t.closest('[data-request-catalog]');
+    if(requestCard) return EQDirectTransfers.requestCatalog(requestCard.dataset.requestCatalog, requestCard);
     const card = t.closest('[data-id]');
     if (card && !t.closest('.leitor-barra')) { if (leitorAberto()) fecharLeitores(); return abrirDetalhe(card.dataset.id); }
     const nav = t.closest('[data-ir]'); if (nav) { fecharCamada(); return ir(nav.dataset.ir); }

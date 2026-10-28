@@ -314,3 +314,14 @@ test('direct transfers enforce authenticated account and restrict offer publishi
  assert.equal((await call('transfers','POST',{operation:'publish',payload:{title:'HQ',items:[]}})).status,403);
  assert.equal((await call('transfers','POST',{operation:'signal',payload:{signal:{type:'offer',sdp:'a'.repeat(64001)}}})).status,400);
 });
+test('catalog series can be requested without an existing offer; only trusted catalog metadata is used', async () => {
+ let published;
+ backend({
+  '/rest/v1/catalog?id=eq.1&select=data':()=>Response.json([{data:{series:[{id:'series:hercules',titulo:'Hercules',colecao:'dc'}]}}]),
+  '/rest/v1/profiles?role=eq.admin&select=id&order=created_at.asc&limit=1':()=>Response.json([{id:'admin-id'}]),
+  '/rest/v1/rpc/hq_transfer':options=>{const b=JSON.parse(options.body);if(b.operation==='offers')return Response.json([]);if(b.operation==='publish'){published=b;return Response.json({id:'new-offer'});}assert.equal(b.actor,'reader-id');assert.equal(b.operation,'request');assert.equal(b.payload.offer,'new-offer');return Response.json({ok:true});}
+ });
+ const result=await call('transfers','POST',{operation:'catalog-request',payload:{id:'series:hercules',owner:'evil'}});
+ assert.equal(result.status,200);assert.equal(published.actor,'admin-id');assert.equal(published.payload.items[0].requestSeries,true);
+ const denied=await call('transfers','POST',{operation:'catalog-request',payload:{id:'unknown'}});assert.equal(denied.status,403);
+});
