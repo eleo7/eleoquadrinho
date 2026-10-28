@@ -77,4 +77,45 @@ test('Noxus event rewards unlock frames and icons when reading Noxus stories, lo
  assert.equal(st2.percent,40);
  assert.equal(st2.nextSet.id,'noxus_katarina');
 });
+test('ThunderCats V1 cloud and local HQs are detected, associated, and count toward unlocking ThunderCats rewards with progress metrics',()=>{
+ const catalogItems=[
+  {id:'cloud-tc-1',titulo:'ThunderCats V1 #01',storagePath:'comics/thundercats-v1-01.cbz',tipo:'ext-hq'},
+  {id:'local-tc-2',titulo:'HQs Thundercats V1 #02',localOnly:true,tipo:'local'},
+  {id:'other-hq',titulo:'Batman Ano Um',tipo:'ext-hq'}
+ ];
+ const cat=T.detectCatalog(catalogItems);
+ assert.equal(cat.enabled,true);
+ assert.equal(cat.hasExplicitV1,true);
+ assert.equal(cat.totalWorks,2);
+ assert.equal(cat.cloudCount,1);
+ assert.equal(cat.localCount,1);
+
+ let s=R.normalize({days:{'2026-10-28':{seconds:300,goal:10}}});
+ let st0=T.status(s,{day:'2026-10-28',week:'2026-10-26',catalogItems});
+ assert.equal(st0.totalRewards,15);
+ assert.equal(st0.unlockedCount,0);
+ assert.equal(st0.remainingRewards,15);
+ assert.equal(st0.percent,0);
+ assert.equal(st0.dailySeconds,300);
+ assert.equal(st0.dailyRemainingSeconds,300);
+ assert.equal(st0.catalog.enabled,true);
+
+ // Reading a ThunderCats V1 HQ (cloud or local) grants catalog association bonus + completed edition rewards (Lion-O set)
+ s=R.advance(s,{id:'cloud-tc-1',seconds:30,progress:0.85,day:'2026-10-28',thunderV1:true,hasV1Catalog:true,work:catalogItems[0]});
+ let st1=T.status(s,{day:'2026-10-28',week:'2026-10-26',catalogItems});
+ assert.ok(st1.unlockedCount>=3);
+ assert.equal(st1.v1WorksRead.includes('cloud-tc-1'),true);
+ assert.equal(st1.sets[0].id,'thunder_liono');
+ assert.equal(st1.sets[0].complete,true);
+ assert.equal(st1.remainingRewards,15-st1.unlockedCount);
+ assert.equal(st1.percent,Math.round((st1.unlockedCount/15)*100));
+
+ // Reading a local ThunderCats V1 HQ unlocks the next hero set
+ const beforeCount=st1.unlockedCount;
+ s=R.advance(s,{id:'local-tc-2',seconds:35,progress:0.9,day:'2026-10-28',thunderV1:true,hasV1Catalog:true,work:catalogItems[1]});
+ let st2=T.status(s,{day:'2026-10-28',week:'2026-10-26',catalogItems});
+ assert.ok(st2.unlockedCount>beforeCount);
+ assert.equal(st2.v1WorksRead.includes('local-tc-2'),true);
+});
+
 

@@ -1941,17 +1941,103 @@
     if (s && EQNoxusRewards.isNoxusWork(s)) return true;
     return false;
   }
+  function ehObraDeThunderCats(it) {
+    if (!it || !window.EQThunderRewards) return false;
+    if (EQThunderRewards.isThunderV1Work(it)) return true;
+    const h = it.heroiId ? REG.get(it.heroiId) : null;
+    if (h && EQThunderRewards.isThunderV1Work(h)) return true;
+    const s = it.serieId ? REG.get(it.serieId) : null;
+    if (s && EQThunderRewards.isThunderV1Work(s)) return true;
+    return false;
+  }
+  function itensThunderCatsCatalogo() {
+    if (!window.EQThunderRewards) return [];
+    const seen = new Set();
+    const list = [];
+    const candidates = [...REG.values(), ...(Array.isArray(externas) ? externas : []), ...(Array.isArray(drive) ? drive : []), ...(Array.isArray(series) ? series : [])];
+    for (const it of candidates) {
+      if (!it || !it.id || seen.has(it.id)) continue;
+      if (!conteudoPermitido(it)) continue;
+      if (!ehObraDeThunderCats(it)) continue;
+      seen.add(it.id);
+      const s = it.serieId ? REG.get(it.serieId) : null;
+      const h = it.heroiId ? REG.get(it.heroiId) : null;
+      list.push({
+        ...it,
+        serieNome: it.serieNome || s?.titulo || '',
+        heroiNome: it.heroiNome || h?.titulo || ''
+      });
+    }
+    return list;
+  }
+  function sincronizarThunderCatsV1() {
+    if (!window.EQThunderRewards || !Auth.usuario || Auth.saindo || !readerSync?.loaded || readerSync.conflict) return;
+    const items = itensThunderCatsCatalogo();
+    const catalog = EQThunderRewards.detectCatalog(items);
+    if (!catalog.enabled) return;
+    const state = estadoRecompensas();
+    let changed = false;
+    if (!state.thunderProgress?.v1CatalogBonusGranted) {
+      const unlocked = EQThunderRewards.advanceV1(state, {
+        id: catalog.firstWork?.readingKey || catalog.firstWork?.id || 'thundercats_v1_catalog',
+        seconds: 0,
+        progress: 0,
+        day: EQReadingRewards.dayKey(),
+        thunderV1: true,
+        hasV1Catalog: true,
+        work: catalog.firstWork || items[0]
+      });
+      if (unlocked.length || state.thunderProgress?.v1CatalogBonusGranted) changed = true;
+    }
+    for (const h of historico) {
+      if (!h || h.prog < 0.5) continue;
+      const item = REG.get(h.id) || h.item;
+      if (!ehObraDeThunderCats(item)) continue;
+      const workKey = item?.readingKey || h.id;
+      if (!state.thunderProgress?.v1WorksRead?.includes(workKey)) {
+        const unlocked = EQThunderRewards.advanceV1(state, {
+          id: workKey,
+          seconds: 0,
+          progress: h.prog,
+          day: EQReadingRewards.dayKey(),
+          thunderV1: true,
+          hasV1Catalog: true,
+          work: item
+        });
+        if (unlocked.length || state.thunderProgress?.v1WorksRead?.includes(workKey)) changed = true;
+      }
+    }
+    if (changed) guardarRecompensas(state);
+  }
   function registrarLeitura(it, prog, rotulo, pos) {
     historico = historico.filter(h => h.id !== it.id);
     const ant = { id: it.id, item: snap(it), prog: Math.max(0, Math.min(1, prog)), rotulo, pos, quando: Date.now() };
     historico.unshift(ant); historico = historico.slice(0, 80);
     Auth.salvarDadosPerfil();
-    if (Auth.usuario && !Auth.saindo && readerSync?.loaded && !readerSync.conflict && ant.prog >= 0.5 && ehObraDeNoxus(it)) {
-      const state = estadoRecompensas();
-      const workKey = it.readingKey || it.id;
-      if (!state.noxusProgress?.worksRead?.includes(workKey)) {
-        const unlocked = EQNoxusRewards.unlockNextForWork(state, { ...it, id: workKey });
-        if (unlocked.length) guardarRecompensas(state);
+    if (Auth.usuario && !Auth.saindo && readerSync?.loaded && !readerSync.conflict && ant.prog >= 0.5) {
+      if (ehObraDeNoxus(it)) {
+        const state = estadoRecompensas();
+        const workKey = it.readingKey || it.id;
+        if (!state.noxusProgress?.worksRead?.includes(workKey)) {
+          const unlocked = EQNoxusRewards.unlockNextForWork(state, { ...it, id: workKey });
+          if (unlocked.length) guardarRecompensas(state);
+        }
+      }
+      if (ehObraDeThunderCats(it)) {
+        const state = estadoRecompensas();
+        const workKey = it.readingKey || it.id;
+        if (!state.thunderProgress?.v1WorksRead?.includes(workKey)) {
+          const unlocked = EQThunderRewards.advanceV1(state, {
+            id: workKey,
+            seconds: 0,
+            progress: ant.prog,
+            day: EQReadingRewards.dayKey(),
+            thunderV1: true,
+            hasV1Catalog: true,
+            work: it
+          });
+          if (unlocked.length || state.thunderProgress?.v1WorksRead?.includes(workKey)) guardarRecompensas(state);
+        }
       }
     }
   }
@@ -3182,6 +3268,7 @@
     return BD.todos().then(async (l) => {
     l.forEach(o => { if (!externas.some(it => it.id === o.id && it.storagePath)) Biblioteca.item(o); });
     renderMinhasHQs();
+    sincronizarThunderCatsV1();
     }).catch(() => {});
   }
 
@@ -3366,7 +3453,8 @@
     const seconds = EQReadingRewards.activeSeconds({ elapsed, visible: !document.hidden, focused: document.hasFocus(), reading: !!item, idle: now - rewardSession.activity });
     if (!seconds) return;
     const state = estadoRecompensas();
-    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[],seed:Auth.usuario?.id||'', noxus: ehObraDeNoxus(item), work: item });
+    const thunderCatalog = itensThunderCatsCatalogo();
+    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[],seed:Auth.usuario?.id||'', noxus: ehObraDeNoxus(item), thunderV1: ehObraDeThunderCats(item), hasV1Catalog: thunderCatalog.length > 0, work: item });
     guardarRecompensas(next);
   }, 15000);
   let rewardSearchState={query:'',filter:'all'};
@@ -3388,16 +3476,19 @@
     }).join('')}<button class="btn btn-pri" data-quest-read>Ler para progredir</button><details><summary>Regras e próximos eventos</summary><p>Vale qualquer obra permitida na sua conta, inclusive arquivos locais. O personagem inspira o visual; não é obrigatório ter HQs dele. Uma conclusão exige 1 minuto de leitura ativa na obra durante a semana e 95% de progresso. Releituras contam uma vez por obra no evento.</p><p>As metas reiniciam às segundas-feiras. Recompensas conquistadas permanecem na conta. Os 12 conjuntos retornam a cada 12 semanas; novas leituras são necessárias a cada evento.</p><p>Próximas semanas: ${next.map(s=>esc(s.hero)).join(' → ')}.</p></details></div></section>`;
   }
   function painelMissoes() {
+    sincronizarThunderCatsV1();
     const state = estadoRecompensas(), stats = EQReadingRewards.metrics(state), day = state.days[EQReadingRewards.dayKey()];
     const goal = day?.goal || state.goal, minutes = (day?.seconds || 0) / 60;
     const selected = EQReadingRewards.appearance(state), xp = EQReadingRewards.xp(state), week = EQReadingRewards.weekly(state);
     const noxusStatus = window.EQNoxusRewards ? EQNoxusRewards.status(state) : null;
+    const thunderCatalog = itensThunderCatsCatalogo();
+    const thunderStatus = window.EQThunderRewards ? EQThunderRewards.status(state, { day: EQReadingRewards.dayKey(), week: week.start, catalogItems: thunderCatalog }) : null;
     const names = {frame:'Molduras',avatar:'Avatares',theme:'Temas',layout:'Layouts'};
     return `<section class="missoes-painel" aria-labelledby="tituloMissoes">
       <div class="rewards-heading"><div><small>SUA JORNADA ENTRE PÁGINAS</small><h3 id="tituloMissoes">Leia. Conquiste. Personalize.</h3><p class="missoes-resumo">${Math.floor(stats.seconds / 60)} min de leitura · ${stats.completed} obras concluídas · ${stats.days} metas cumpridas</p></div><div class="xp-balance"><small>NÍVEL ${1+Math.floor(xp/1000)}</small><strong>${rewardNumber(xp)} <span>XP</span></strong><progress value="${xp%1000}" max="1000" aria-label="Progresso até o próximo nível"></progress><small>${rewardNumber(1000-xp%1000)} XP para o próximo nível</small></div></div>
       ${painelEvento(state)}
       ${noxusStatus ? `<section class="painel noxus-event" aria-label="Evento de Noxus"><div class="noxus-event-head"><span class="noxus-event-badge">EVENTO DE NOXUS · IMPÉRIO DE FERRO E SANGUE</span><h3>Legião de Noxus · Molduras & Ícones Exclusivos</h3><p>Leia um conto, história, Lore ou HQ de qualquer personagem de Noxus (Darius, Swain, Katarina, LeBlanc, Draven, Riven, Samira, Mordekaiser, Ambessa, Talon, Sion e mais) para adquirir as 5 molduras e os 5 ícones exclusivos de Noxus.</p></div><div class="noxus-progress-card" role="region" aria-label="Progresso do Evento de Noxus"><div class="noxus-progress-header"><div><strong>${noxusStatus.remainingSets===0?'✓ Evento de Noxus Concluído!':`Progresso do Evento: ${noxusStatus.completedSets} de ${noxusStatus.totalSets} conjuntos (${noxusStatus.completedSets*2}/${noxusStatus.totalSets*2} recompensas)`}</strong><span>${noxusStatus.remainingSets===0?'Todas as 5 molduras e 5 ícones de Noxus já estão na sua coleção.':`Faltam ${noxusStatus.remainingSets} ${noxusStatus.remainingSets===1?'conjunto':'conjuntos'} (${noxusStatus.remainingSets} ${noxusStatus.remainingSets===1?'obra lida':'obras lidas'} ou ${Math.ceil(noxusStatus.totalSecondsRemaining/60)} min de leitura em Noxus) para completar tudo`}</span></div><span class="noxus-progress-pct">${noxusStatus.percent}%</span></div><progress class="noxus-progress-bar" value="${noxusStatus.effectiveSeconds}" max="${noxusStatus.totalTargetSeconds}" aria-label="Progresso geral para completar o evento de Noxus"></progress><div class="noxus-progress-steps" aria-hidden="true">${noxusStatus.sets.map((s,idx)=>`<span class="noxus-step ${s.complete?'done':noxusStatus.nextSet?.id===s.id?'active':''}"><i>${s.complete?'✓':idx+1}</i><small>${esc(s.label.split(' · ')[0])}</small></span>`).join('')}</div>${noxusStatus.nextSet?`<div class="noxus-next-unlock"><div class="noxus-next-info"><span>Próxima recompensa: <strong>${esc(noxusStatus.nextSet.label)}</strong> (Moldura + Ícone)</span><small>Falta concluir 1 obra de Noxus ou ${noxusStatus.nextSecondsRemaining}s de leitura ativa</small></div><progress class="noxus-next-bar" value="${noxusStatus.currentStepSeconds}" max="${noxusStatus.secondsPerUnlock}" aria-label="Progresso para a próxima recompensa de Noxus"></progress></div>`:''}</div><div class="news-rewards noxus-rewards-grid">${noxusStatus.sets.map(s=>`<div class="noxus-reward-item ${s.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${s.complete?'✓ Conquistado':esc(s.roleLabel)}</small></div>`).join('')}</div><p class="noxus-progress-line">Conjuntos conquistados: <strong>${noxusStatus.completedSets} / ${noxusStatus.totalSets}</strong> · Tempo em obras de Noxus: ${Math.floor(noxusStatus.seconds/60)} min · Obras de Noxus lidas: ${noxusStatus.worksRead.length}</p><small>Cada conto, história, Lore ou HQ de qualquer personagem de Noxus lido (ou 1 minuto de leitura ativa em obra de Noxus) libera um conjunto completo de Moldura + Ícone de Noxus.</small><div class="noxus-actions"><button class="btn btn-pri" data-noxus-read="conto:noxus-trifarix">📜 Ler Conto de Noxus</button><button class="btn btn-sec" data-noxus-read="regiao:noxus">🗺️ Ler Lore de Noxus</button><button class="btn btn-sec" data-noxus-read="rhq:darius/bloodofnoxus">🗯️ Ler HQ Darius: Sangue de Noxus</button></div></section>` : ''}
-      <section class="painel thunder-event"><h3>ThunderCats · Chamado da Terceira Terra</h3><p>Leia 10 minutos hoje para um sorteio diário e 60 minutos na semana para outro sorteio. Prêmios automáticos e gratuitos entre 15 molduras, ícones e temas ainda não conquistados. Sem repetições até completar a coleção.</p><div class="news-rewards">${EQThunderRewards.SETS.map(s=>`<div><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong></div>`).join('')}</div><p>Hoje: ${Math.floor((state.days[EQReadingRewards.dayKey()]?.seconds||0)/60)} / 10 min · Semana: ${Math.floor(Object.entries(state.days).filter(([d])=>d>=week.start&&d>='2026-10-28').reduce((n,[,v])=>n+v.seconds,0)/60)} / 60 min</p><p>${state.thunderDraws.daily?.key===EQReadingRewards.dayKey()?'✓ Sorteio diário realizado':'Sorteio diário disponível ao cumprir a meta'} · ${state.thunderDraws.weekly?.key===week.start?'✓ Sorteio semanal realizado':'Sorteio semanal disponível ao cumprir a meta'}</p><small>Horário de Brasília. A semana começa na segunda-feira. Só leitura ativa conta, a partir de 28/10/2026. Ao completar os 15 itens, a coleção fica concluída; não há prêmios pagos ou em dinheiro.</small><button class="btn btn-pri" data-quest-read>Ler para participar</button></section><div class="epic-challenges">${EQEpicRewards.status(state.epicProgress,EQReadingRewards.dayKey()).map(c=>`<article class="painel epic-challenge"><div class="epic-art">${EQRewardArt.avatar('sentinel')}${EQRewardArt.frame(c.option.id)}</div><div><small>${c.kind==='week'?'DESAFIO ÉPICO DA SEMANA':'COLEÇÃO ÉPICA DO MÊS'}</small><h3>${esc(c.option.label)}</h3><p>Leia ${c.target/60} minutos ${c.kind==='week'?'e conclua 2 obras nesta semana.':'e leia pelo menos 5 minutos em 8 dias deste mês.'}</p><progress value="${Math.min(c.seconds,c.target)}" max="${c.target}" aria-label="Tempo de leitura"></progress><p>${Math.floor(c.seconds/60)} / ${c.target/60} min · ${c.count} / ${c.countTarget} ${c.kind==='week'?'obras':'dias'}</p><strong>${EQReadingRewards.available(state,'frame',c.option.id)?'✓ Moldura conquistada':'Conquiste a moldura exclusiva'}</strong><br><button class="btn btn-pri" data-quest-read>Ler para progredir</button></div></article>`).join('')}</div><p class="epic-rules">A semana começa na segunda-feira; o mês, no dia 1, no horário de Brasília. Apenas leituras realizadas no período contam. A coleção tem 12 edições mensais programadas, que retornam anualmente; as conquistas ficam na conta.</p>
+      <section class="painel thunder-event" aria-label="Evento ThunderCats"><div class="thunder-event-head"><span class="thunder-event-badge">EVENTO THUNDERCATS · TERCEIRA TERRA</span><h3>ThunderCats · Chamado da Terceira Terra</h3><p>Leia 10 minutos hoje para um sorteio diário, 60 minutos na semana para outro sorteio ou leia <strong>HQs ThunderCats V1</strong> (habilitadas na nuvem ou localmente) para desbloquear diretamente as 15 recompensas exclusivas (5 molduras, 5 ícones e 5 temas).</p></div>${thunderStatus ? `<div class="thunder-progress-card" role="region" aria-label="Progresso do Evento ThunderCats"><div class="thunder-progress-header"><div><strong>${thunderStatus.remainingRewards===0?'✓ Evento ThunderCats Concluído!':`Progresso do Evento: ${thunderStatus.unlockedCount} de ${thunderStatus.totalRewards} recompensas (${thunderStatus.completedSets}/${thunderStatus.totalSets} conjuntos)`}</strong><span>${thunderStatus.remainingRewards===0?'Todas as 15 recompensas (5 molduras, 5 ícones e 5 temas) de ThunderCats já estão na sua coleção.':`Faltam ${thunderStatus.remainingRewards} ${thunderStatus.remainingRewards===1?'recompensa':'recompensas'} (${thunderStatus.remainingSets} ${thunderStatus.remainingSets===1?'conjunto':'conjuntos'}) para completar o evento e desbloquear todas as novas recompensas`}</span></div><span class="thunder-progress-pct">${thunderStatus.percent}%</span></div><progress class="thunder-progress-bar" value="${thunderStatus.unlockedCount}" max="${thunderStatus.totalRewards}" aria-label="Progresso geral para completar o evento de ThunderCats"></progress><div class="thunder-progress-steps" aria-hidden="true">${thunderStatus.sets.map(s=>`<span class="thunder-step ${s.complete?'done':s.earnedCount>0?'active':''}"><i>${s.complete?'✓':`${s.earnedCount}/3`}</i><small>${esc(s.hero)}</small></span>`).join('')}</div><div class="thunder-v1-box ${thunderStatus.catalog.enabled?'enabled':''}" role="status"><div class="thunder-v1-head"><span class="thunder-v1-pill">${thunderStatus.catalog.enabled?'✓ HQs ThunderCats V1 Habilitadas':'⚡ HQs ThunderCats V1 (Nuvem / Local)'}</span><small>${thunderStatus.catalog.enabled?`${thunderStatus.catalog.totalWorks} HQ(s)/série(s) ativa(s) (${thunderStatus.catalog.cloudCount} na nuvem · ${thunderStatus.catalog.localCount} local) · Contabilizando para recompensas`:'Habilite na nuvem ou importe localmente HQs ThunderCats V1 para contabilizar bônus e desbloqueios diretos'}</small></div><progress class="thunder-v1-bar" value="${thunderStatus.remainingRewards===0?thunderStatus.v1SecondsPerReward:(thunderStatus.v1StepSeconds||(thunderStatus.catalog.enabled?20:0))}" max="${thunderStatus.v1SecondsPerReward}" aria-label="Progresso das HQs ThunderCats V1"></progress><div class="thunder-v1-meta"><span>Edições ThunderCats V1 lidas: <strong>${thunderStatus.v1WorksRead.length}</strong> · Leitura V1: <strong>${Math.floor(thunderStatus.v1Seconds/60)} min</strong></span><span>${thunderStatus.remainingRewards===0?'✓ Todas as recompensas desbloqueadas':thunderStatus.catalog.enabled?`Próxima recompensa V1: faltam ${Math.ceil(thunderStatus.v1NextSecondsRemaining)}s ou 1 HQ ThunderCats V1 concluída`:'Associe HQs ThunderCats V1 na biblioteca para acelerar'}</span></div></div><div class="thunder-subbars"><div class="thunder-subbar-item"><div class="thunder-subbar-top"><span>Sorteio Diário (10 min hoje)</span><strong>${Math.floor(thunderStatus.dailySeconds/60)} / 10 min</strong></div><progress value="${thunderStatus.dailySeconds}" max="${thunderStatus.dailyTargetSeconds}" aria-label="Meta diária do evento ThunderCats"></progress><small>${thunderStatus.dailyDone?'✓ Sorteio diário realizado hoje':`Faltam ${Math.ceil(thunderStatus.dailyRemainingSeconds/60)} min hoje para ganhar 1 recompensa`}</small></div><div class="thunder-subbar-item"><div class="thunder-subbar-top"><span>Sorteio Semanal (60 min na semana)</span><strong>${Math.floor(thunderStatus.weeklySeconds/60)} / 60 min</strong></div><progress value="${thunderStatus.weeklySeconds}" max="${thunderStatus.weeklyTargetSeconds}" aria-label="Meta semanal do evento ThunderCats"></progress><small>${thunderStatus.weeklyDone?'✓ Sorteio semanal realizado':`Faltam ${Math.ceil(thunderStatus.weeklyRemainingSeconds/60)} min na semana para ganhar 1 recompensa`}</small></div></div></div>` : ''}<div class="news-rewards">${EQThunderRewards.SETS.map(s=>{const st=thunderStatus?.sets.find(x=>x.id===s.id);return `<div class="thunder-reward-item ${st?.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${st?`${st.earnedCount}/3 itens`:''}</small></div>`;}).join('')}</div><p>Hoje: ${Math.floor((state.days[EQReadingRewards.dayKey()]?.seconds||0)/60)} / 10 min · Semana: ${Math.floor(Object.entries(state.days).filter(([d])=>d>=week.start&&d>='2026-10-28').reduce((n,[,v])=>n+v.seconds,0)/60)} / 60 min${thunderStatus?.catalog.enabled?` · HQs ThunderCats V1: ${thunderStatus.catalog.totalWorks} habilitada(s)`:''}</p><p>${state.thunderDraws.daily?.key===EQReadingRewards.dayKey()?'✓ Sorteio diário realizado':'Sorteio diário disponível ao cumprir a meta'} · ${state.thunderDraws.weekly?.key===week.start?'✓ Sorteio semanal realizado':'Sorteio semanal disponível ao cumprir a meta'}</p><small>Horário de Brasília. A semana começa na segunda-feira. Só leitura ativa conta, a partir de 28/10/2026. HQs ThunderCats V1 habilitadas na nuvem ou localmente também contabilizam diretamente para desbloquear as recompensas. Ao completar os 15 itens, a coleção fica concluída; não há prêmios pagos ou em dinheiro.</small><div class="thunder-actions"><button class="btn btn-pri" data-quest-read>Ler para participar</button>${thunderStatus?.catalog.enabled&&thunderStatus.catalog.firstWork?`<button class="btn btn-sec" data-thunder-v1-read="${esc(thunderStatus.catalog.firstWork.id)}">⚡ Ler HQ ThunderCats V1</button>`:''}</div></section><div class="epic-challenges">${EQEpicRewards.status(state.epicProgress,EQReadingRewards.dayKey()).map(c=>`<article class="painel epic-challenge"><div class="epic-art">${EQRewardArt.avatar('sentinel')}${EQRewardArt.frame(c.option.id)}</div><div><small>${c.kind==='week'?'DESAFIO ÉPICO DA SEMANA':'COLEÇÃO ÉPICA DO MÊS'}</small><h3>${esc(c.option.label)}</h3><p>Leia ${c.target/60} minutos ${c.kind==='week'?'e conclua 2 obras nesta semana.':'e leia pelo menos 5 minutos em 8 dias deste mês.'}</p><progress value="${Math.min(c.seconds,c.target)}" max="${c.target}" aria-label="Tempo de leitura"></progress><p>${Math.floor(c.seconds/60)} / ${c.target/60} min · ${c.count} / ${c.countTarget} ${c.kind==='week'?'obras':'dias'}</p><strong>${EQReadingRewards.available(state,'frame',c.option.id)?'✓ Moldura conquistada':'Conquiste a moldura exclusiva'}</strong><br><button class="btn btn-pri" data-quest-read>Ler para progredir</button></div></article>`).join('')}</div><p class="epic-rules">A semana começa na segunda-feira; o mês, no dia 1, no horário de Brasília. Apenas leituras realizadas no período contam. A coleção tem 12 edições mensais programadas, que retornam anualmente; as conquistas ficam na conta.</p>
       <div class="quest-columns">
         <article class="quest-banner quest-gold"><span class="quest-badge">CAÇADA DA SEMANA</span><div class="quest-content"><div class="quest-emblem">${EQRewardArt.avatar('phoenix')}${EQRewardArt.frame('gold')}</div><div><h4>${week.done ? 'Uma semana de conquistas!' : 'Uma hora, muitas aventuras'}</h4><p>Some 60 minutos de leitura ativa nesta semana.</p><progress value="${Math.min(week.seconds,week.target)}" max="${week.target}" aria-label="Progresso da caçada semanal"></progress><div class="quest-progress"><span>${Math.floor(week.seconds/60)} de 60 min</span><strong>${week.done ? '✓ +300 XP recebidos' : '+300 XP ao concluir'}</strong></div><small>Até domingo, ${week.end.slice(8)}/${week.end.slice(5,7)}, às 23h59 · Brasília</small><div class="quest-actions"><button class="btn btn-pri" data-quest-read>Continuar lendo</button><details><summary>ⓘ Ver regras</summary><p>Leia nos leitores internos. O tempo da semana soma entre as obras. O bônus é automático, uma vez por semana, e permanece com você.</p></details></div></div></div></article>
         <div class="meta-leitura quest-banner quest-green"><span class="quest-badge">SEU OBJETIVO DIÁRIO</span><div><h4>${day?.done ? '✓ Meta de hoje cumprida!' : 'Um capítulo de cada vez'}</h4><p>${Math.floor(minutes)} de ${goal} minutos de leitura ativa</p><progress value="${Math.min(minutes, goal)}" max="${goal}" aria-label="Progresso da meta diária"></progress><div class="quest-progress"><span>${day?.done ? 'Volte amanhã para uma nova meta' : 'Leia hoje para conquistar seu bônus'}</span><strong>${day?.done ? '✓ +50 XP recebidos' : '+50 XP ao concluir'}</strong></div></div><label>Meta diária<select id="metaLeituraMinutos">${EQReadingRewards.GOALS.map(n => `<option value="${n}" ${state.goal === n ? 'selected' : ''}>${n} minutos</option>`).join('')}</select></label>${day?.done && day.goal!==state.goal ? '<small>A nova meta vale a partir de amanhã.</small>' : ''}</div>
@@ -3409,7 +3500,7 @@
       ${Object.entries(names).map(([kind,name])=>`<div class="reward-collection" id="reward-panel-${kind}" role="tabpanel" aria-labelledby="reward-tab-${kind}" ${rewardTab===kind?'':'hidden'}>${EQReadingRewards.OPTIONS[kind].map(o=>{
         const unlocked=EQReadingRewards.available(state,kind,o.id), equipped=selected[kind]===o.id;
         const mission=EQReadingRewards.MISSIONS.find(m=>m.reward===kind+':'+o.id);
-        const requirement=o.noxus ? 'Evento de Noxus · Ler conto, história, Lore ou HQ de Noxus' : o.thunder ? 'Sorteio ThunderCats · diário e semanal' : o.epic ? (o.monthly?'Desafio mensal · a partir de '+o.release.slice(5,7)+'/'+o.release.slice(0,4):'Desafio épico semanal') : o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
+        const requirement=o.noxus ? 'Evento de Noxus · Ler conto, história, Lore ou HQ de Noxus' : o.thunder ? 'Evento ThunderCats · Sorteio ou leitura de HQs ThunderCats V1' : o.epic ? (o.monthly?'Desafio mensal · a partir de '+o.release.slice(5,7)+'/'+o.release.slice(0,4):'Desafio épico semanal') : o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
         return `<button type="button" class="reward-card ${equipped?'equipped':''} ${unlocked?'':'locked'}" data-reward-kind="${kind}" data-reward-id="${o.id}" data-reward-event="${!!o.event}" data-reward-earned="${unlocked}" data-reward-name="${esc(o.label)}" aria-pressed="${equipped}" ${unlocked?'':'disabled'} title="${esc(unlocked?'Equipar '+o.label:requirement)}"><span class="reward-card-state" aria-hidden="true">${equipped?'✓':unlocked?'':'🔒'}</span>${previaRecompensa(kind,o)}<strong>${esc(o.label)}</strong><span class="reward-card-cost">${equipped?'Equipado':unlocked?'Disponível · Equipar':esc(requirement)}</span></button>`;
       }).join('')}</div>`).join('')}
       <p id="rewardFilterStatus" role="status"></p>
@@ -3456,6 +3547,19 @@
       const reading=historico.find(h=>h.prog<.95 && candidates.some(it=>it.id===h.id));
       const item=candidates.find(it=>it.id===reading?.id) || candidates.find(it=>!estadoRecompensas().books['work:'+(it.readingKey||it.id)]?.completed) || candidates[0];
       if (item) abrirLeitura(item.id); else toast('Adicione uma HQ permitida à sua biblioteca para começar a missão.');
+    });
+    $$('[data-thunder-v1-read]').forEach(button=>button.onclick=()=>{
+      const preferredId=button.dataset.thunderV1Read;
+      const items=itensThunderCatsCatalogo();
+      const target=REG.get(preferredId) || items.find(it=>it.id===preferredId) || items.find(it=>it.tipo!=='serie'&&it.tipo!=='heroi') || items[0];
+      if (target && target.tipo === 'serie') {
+        ir('inicio');
+        exNavegar({ uni: (universoDoItem(target) || UNIVERSOS[0]).id, serie: target.id, heroi: null });
+      } else if (target) {
+        abrirLeitura(target.id);
+      } else {
+        toast('Habilite na nuvem ou importe localmente uma HQ ThunderCats V1 para abrir.');
+      }
     });
     $$('[data-noxus-read]').forEach(button=>button.onclick=()=>{
       const preferredId=button.dataset.noxusRead;
