@@ -1,7 +1,7 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v46-thunder';
+const CACHE_NAME = 'eq-cache-v47-thunder';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
@@ -32,6 +32,8 @@ const ASSETS_ESTATICOS = [
   './manifest.json',
   './assets/icon.svg',
   './assets/universe-default.svg',
+  './assets/thundercats-frames.png',
+  './assets/thundercats-avatars.png',
   './assets/capas/guardia.jpg',
   './assets/capas/grega.jpg',
   './assets/capas/nordica.jpg',

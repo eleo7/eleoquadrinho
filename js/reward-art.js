@@ -52,9 +52,13 @@
     return `<svg class="reward-frame-art epic-frame" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${uid}" x2=".8" y2="1"><stop stop-color="${light}"/><stop offset=".2" stop-color="${dark}"/><stop offset=".45" stop-color="${light}"/><stop offset=".65" stop-color="${dark}"/><stop offset="1" stop-color="${light}"/></linearGradient></defs><g fill="url(#${uid})" stroke="#09111d" stroke-width="1.7"><path d="M25 17h70l12 13v64l-14 16H27L13 94V30Zm6 12-8 8v51l10 12h54l10-12V37l-8-8Z" fill-rule="evenodd"/><path d="M30 28h60l9 10v51l-12 13H33L21 89V38Z" fill="none" stroke="${light}" stroke-width="2"/>${heads[set.id]}${decorations[set.id]}${option.monthly?'<path d="m38 105 8-7 7 8 7-13 7 13 7-8 8 7-6 10H44Z" fill="#ffda76"/>':''}</g></svg>`;
   }
 
+  const thunderFrameBoxes=[[7,433,0,60,447,563],[448,426,439,84,448,555],[879,423,865,78,446,530],[1306,432,1300,82,447,530],[1745,421,1731,51,446,580]];
   function frame(id) {
     const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
-    if(thunder)return `<svg class="reward-frame-art" viewBox="0 0 120 120" aria-hidden="true"><svg x="0" y="0" width="120" height="120" viewBox="${thunder.index*434.4} 0 434.4 724" preserveAspectRatio="none"><image href="assets/thundercats-frames.png" width="2172" height="724"/></svg></svg>`;
+    if(thunder){
+      const uid='eq-thunder-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=thunderFrameBoxes[thunder.index]||thunderFrameBoxes[0];
+      return `<svg class="reward-frame-art thunder-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="724"/></clipPath></defs><svg x="4" y="-4" width="112" height="128" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/thundercats-frames.png" width="2172" height="724" clip-path="url(#${uid})"/></svg></svg>`;
+    }
 
     const epic=EQEpicRewards.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
     const [dark,light,motif]=palettes[id]||palettes.default, uid='eq-frame-'+(++sequence);
@@ -81,7 +85,10 @@
   }
   function avatar(id) {
     const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
-    if(thunder)return `<svg class="reward-avatar-art" viewBox="0 0 100 100" aria-hidden="true"><svg width="100" height="100" viewBox="${thunder.index*434.4} 70 434.4 500" preserveAspectRatio="xMidYMid slice"><image href="assets/thundercats-avatars.png" width="2172" height="724"/></svg></svg>`;
+    if(thunder){
+      const uid='eq-thunder-av-'+(++sequence);
+      return `<svg class="reward-avatar-art" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${thunder.index*434.4+8} 65 418 418" preserveAspectRatio="xMidYMid slice"><image href="assets/thundercats-avatars.png" width="2172" height="724"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${thunder.light}" stroke-opacity=".55" stroke-width="2"/></svg>`;
+    }
 
     const set=Seasons.find(id);if(set)return heroAvatar(set,id.startsWith('event_'));
     const config={sentinel:['#27a8d7','#09243c'],ranger:['#7bd985','#133f32'],astronaut:['#b6caff','#20284f'],mage:['#c78cff','#381959'],cybercat:['#69f8e8','#30217b'],phoenix:['#ffbe51','#6c1c33']}[id]||['#27a8d7','#09243c'];

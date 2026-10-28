@@ -3356,9 +3356,9 @@
   let rewardTab = 'frame';
   const rewardNumber = n => n.toLocaleString('pt-BR');
   function previaRecompensa(kind, option) {
-    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
+    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set || option.thunder ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
     if (kind === 'avatar') return `<span class="reward-art-preview avatar-preview">${option.art ? EQRewardArt.avatar(option.id) : `<span class="reward-emoji">${option.icon}</span>`}</span>`;
-    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set ? EQRewardArt.avatar(option.id) : ''}</span>`;
+    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set || option.thunder ? EQRewardArt.avatar(option.id) : ''}</span>`;
     return `<span class="layout-preview" data-preview-layout="${option.id}"><i></i><span>${Array.from({length:6},()=>'<b></b>').join('')}</span></span>`;
   }
   function painelEvento(state) {

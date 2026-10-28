@@ -14,3 +14,22 @@ test('ThunderCats does not draw before release or for zero activity',()=>{
  const s=R.advance(null,{id:'hq',seconds:0,day:'2026-10-28'});assert.deepEqual(s.thunderDraws,{});
  const old=R.normalize({days:{'2026-10-27':{seconds:6000}}});T.draw(old,{day:'2026-10-27',week:'2026-10-26'});assert.deepEqual(old.thunderDraws,{});
 });
+test('ThunderCats frame and avatar artwork match standard geometry without vertical squashing or sprite bleed',()=>{
+ global.EQRewardSeasons=require('../js/reward-seasons');
+ global.EQEpicRewards=require('../js/epic-rewards');
+ global.EQThunderRewards=T;
+ require('../js/reward-art');
+ const Art=global.EQRewardArt;
+ for(const set of T.SETS){
+  const f=Art.frame(set.id),a=Art.avatar(set.id);
+  assert.match(f,/class="reward-frame-art thunder-frame"/);
+  assert.match(f,/viewBox="0 0 120 120"/);
+  assert.match(f,/clipPath id="eq-thunder-frame-\d+"/);
+  assert.doesNotMatch(f,/0 434\.4 724/);
+  assert.match(a,/class="reward-avatar-art"/);
+  assert.match(a,/rx="22"/);
+  assert.match(a,/thundercats-avatars\.png/);
+  assert.match(a,new RegExp(`stroke="${set.light}"`));
+ }
+});
+
