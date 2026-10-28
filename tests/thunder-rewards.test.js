@@ -18,6 +18,7 @@ test('ThunderCats frame and avatar artwork match standard geometry without verti
  global.EQRewardSeasons=require('../js/reward-seasons');
  global.EQEpicRewards=require('../js/epic-rewards');
  global.EQThunderRewards=T;
+ global.EQNoxusRewards=require('../js/noxus-rewards');
  require('../js/reward-art');
  const Art=global.EQRewardArt;
  for(const set of T.SETS){
@@ -31,5 +32,33 @@ test('ThunderCats frame and avatar artwork match standard geometry without verti
   assert.match(a,/thundercats-avatars\.png/);
   assert.match(a,new RegExp(`stroke="${set.light}"`));
  }
+});
+test('Noxus event rewards unlock frames and icons when reading Noxus stories, lore, or HQs',()=>{
+ const N=require('../js/noxus-rewards');
+ global.EQNoxusRewards=N;
+ require('../js/reward-art');
+ const Art=global.EQRewardArt;
+ assert.equal(N.SETS.length,5);
+ for(const set of N.SETS){
+  const f=Art.frame(set.id),a=Art.avatar(set.id);
+  assert.match(f,/class="reward-frame-art noxus-frame"/);
+  assert.match(f,/viewBox="0 0 120 120"/);
+  assert.match(f,/noxus-frames\.png/);
+  assert.match(a,/class="reward-avatar-art noxus-avatar"/);
+  assert.match(a,/noxus-avatars\.png/);
+ }
+ assert.equal(N.isNoxusWork('conto:noxus-trifarix'),true);
+ assert.equal(N.isNoxusWork('rhq:darius/bloodofnoxus'),true);
+ assert.equal(N.isNoxusWork({id:'lol:Swain',titulo:'Swain',sub:'O Grande General Noxiano'}),true);
+ assert.equal(N.isNoxusWork('rserie:lux'),false);
+
+ let s=R.normalize({});
+ s=R.advance(s,{id:'lol:Swain',seconds:20,progress:0.8,day:'2026-10-28'});
+ assert.equal(R.available(s,'frame','noxus_swain'),true);
+ assert.equal(R.available(s,'avatar','noxus_swain'),true);
+
+ s=R.advance(s,{id:'rhq:darius/bloodofnoxus',seconds:20,progress:0.9,day:'2026-10-28'});
+ assert.equal(R.available(s,'frame','noxus_darius'),true);
+ assert.equal(R.available(s,'avatar','noxus_darius'),true);
 });
 

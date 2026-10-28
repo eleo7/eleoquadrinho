@@ -1,7 +1,7 @@
 /* =========================================================
    EleoQuadrinho — Service Worker (Offline Cache & PWA)
    ========================================================= */
-const CACHE_NAME = 'eq-cache-v47-thunder';
+const CACHE_NAME = 'eq-cache-v46-thunder';
 const ASSETS_ESTATICOS = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const ASSETS_ESTATICOS = [
   './js/unrar.wasm?v=thunder-20261028-43',
   './js/reward-seasons.js?v=thunder-20261028-43',
   './js/thunder-rewards.js?v=thunder-20261028-43',
+  './js/noxus-rewards.js?v=thunder-20261028-43',
   './js/reward-art.js?v=thunder-20261028-43',
   './js/community.js?v=thunder-20261028-43',
   './js/local-library.js?v=thunder-20261028-43',
@@ -34,6 +35,8 @@ const ASSETS_ESTATICOS = [
   './assets/universe-default.svg',
   './assets/thundercats-frames.png',
   './assets/thundercats-avatars.png',
+  './assets/noxus-frames.png',
+  './assets/noxus-avatars.png',
   './assets/capas/guardia.jpg',
   './assets/capas/grega.jpg',
   './assets/capas/nordica.jpg',

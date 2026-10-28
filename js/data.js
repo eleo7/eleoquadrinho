@@ -640,6 +640,25 @@ const CONTOS = [
 
         Sozinho na fronteira, ele desafiou o exército inimigo para duelos individuais dia após dia, tomado pelo *ríastrad*, o espasmo de batalha que transformava seu corpo em uma força indomável da natureza, gravando seu nome para sempre nas sagas da Irlanda.`)]
     ]
+  },
+
+  /* ===== NOXUS · RUNETERRA ===== */
+  {
+    id: 'noxus-trifarix', colecao: 'cronicas-lol', titulo: 'Noxus: Ferro, Sangue e a Rosa Negra', sub: 'Crônica de Darius, Swain, Katarina, LeBlanc e Draven no Bastião Imortal', tempo: 6,
+    capitulos: [
+      ['Os Três Pilares do Trifarix', P(`
+        Sob a sombra colossal do Bastião Imortal, ninguém nasce com o direito de governar Noxus. Após a queda do tirano Boram Darkwill, o Grande General Jericho Swain ergueu o Trifarix — um conselho de três pilares onde nenhum governante absoluto poderia corromper o império sozinho: Visão, Poder e Astúcia.
+
+        Nos salões de basalto, os corvos demoníacos de Raum sussurram segredos de todas as fronteiras para Swain, enquanto Darius, a Mão de Noxus, marcha à frente da Legião Trifariana com seu machado banhado em aço negro. Para Darius, a nobreza de berço nada vale: em Noxus, qualquer soldado que erguer sua arma com determinação pode subir ao topo.`)],
+      ['A Lâmina e a Rosa', P(`
+        Mas nas galerias subterrâneas sob a capital, onde as tochas ardem em tons de púrpura, a pálida feiticeira LeBlanc tece outra história. Líder da cabala milenar da Rosa Negra, ela manipula príncipes, generais e magos de sangue desde a era de Mordekaiser, espalhando ilusões entre os salões de poder.
+
+        Entre a visão implacável de Swain e as conspirações da Rosa Negra caminha Katarina Du Couteau. Com suas adagas gêmeas reluzindo na neblina noturna, a Lâmina Sinistra executa sentenças silenciosas contra aqueles que traem a força do império — provando que um único golpe preciso pode mudar o destino de uma guerra inteira.`)],
+      ['O Rugido da Arena', P(`
+        Enquanto generais e assassinos decidem o futuro nas fronteiras e nas sombras, o coração do povo noxiano pulsa nas areias ensanguentadas da Arena da Carnificina. Sob o clamor de milhares de vozes e o brilho de tochas acorrentadas, Draven — o Glorioso Carrasco — transforma o julgamento pela força em espetáculo.
+
+        Machados giratórios cortam o ar sob o estandarte carmesim de Noxus. Seja nas muralhas de Basilich, nos corredores secretos da Rosa Negra ou no centro da arena, uma única lei une todos os campeões do império: a força acima de tudo.`)]
+    ]
   }
 ];
 

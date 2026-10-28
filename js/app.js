@@ -1932,11 +1932,28 @@
   }
 
   /* ---------------- Histórico / salvos ---------------- */
+  function ehObraDeNoxus(it) {
+    if (!it || !window.EQNoxusRewards) return false;
+    if (EQNoxusRewards.isNoxusWork(it)) return true;
+    const h = it.heroiId ? REG.get(it.heroiId) : null;
+    if (h && EQNoxusRewards.isNoxusWork(h)) return true;
+    const s = it.serieId ? REG.get(it.serieId) : null;
+    if (s && EQNoxusRewards.isNoxusWork(s)) return true;
+    return false;
+  }
   function registrarLeitura(it, prog, rotulo, pos) {
     historico = historico.filter(h => h.id !== it.id);
     const ant = { id: it.id, item: snap(it), prog: Math.max(0, Math.min(1, prog)), rotulo, pos, quando: Date.now() };
     historico.unshift(ant); historico = historico.slice(0, 80);
     Auth.salvarDadosPerfil();
+    if (Auth.usuario && !Auth.saindo && readerSync?.loaded && !readerSync.conflict && ant.prog >= 0.5 && ehObraDeNoxus(it)) {
+      const state = estadoRecompensas();
+      const workKey = it.readingKey || it.id;
+      if (!state.noxusProgress?.worksRead?.includes(workKey)) {
+        const unlocked = EQNoxusRewards.unlockNextForWork(state, { ...it, id: workKey });
+        if (unlocked.length) guardarRecompensas(state);
+      }
+    }
   }
   const posicaoSalva = (id) => historico.find(h => h.id === id);
   function alternarSalvo(id) {
@@ -3349,16 +3366,16 @@
     const seconds = EQReadingRewards.activeSeconds({ elapsed, visible: !document.hidden, focused: document.hasFocus(), reading: !!item, idle: now - rewardSession.activity });
     if (!seconds) return;
     const state = estadoRecompensas();
-    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[],seed:Auth.usuario?.id||'' });
+    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[],seed:Auth.usuario?.id||'', noxus: ehObraDeNoxus(item), work: item });
     guardarRecompensas(next);
   }, 15000);
   let rewardSearchState={query:'',filter:'all'};
   let rewardTab = 'frame';
   const rewardNumber = n => n.toLocaleString('pt-BR');
   function previaRecompensa(kind, option) {
-    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set || option.thunder ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
+    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set || option.thunder || option.noxus ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
     if (kind === 'avatar') return `<span class="reward-art-preview avatar-preview">${option.art ? EQRewardArt.avatar(option.id) : `<span class="reward-emoji">${option.icon}</span>`}</span>`;
-    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set || option.thunder ? EQRewardArt.avatar(option.id) : ''}</span>`;
+    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set || option.thunder || option.noxus ? EQRewardArt.avatar(option.id) : ''}</span>`;
     return `<span class="layout-preview" data-preview-layout="${option.id}"><i></i><span>${Array.from({length:6},()=>'<b></b>').join('')}</span></span>`;
   }
   function painelEvento(state) {
@@ -3374,10 +3391,12 @@
     const state = estadoRecompensas(), stats = EQReadingRewards.metrics(state), day = state.days[EQReadingRewards.dayKey()];
     const goal = day?.goal || state.goal, minutes = (day?.seconds || 0) / 60;
     const selected = EQReadingRewards.appearance(state), xp = EQReadingRewards.xp(state), week = EQReadingRewards.weekly(state);
+    const noxusStatus = window.EQNoxusRewards ? EQNoxusRewards.status(state) : null;
     const names = {frame:'Molduras',avatar:'Avatares',theme:'Temas',layout:'Layouts'};
     return `<section class="missoes-painel" aria-labelledby="tituloMissoes">
       <div class="rewards-heading"><div><small>SUA JORNADA ENTRE PÁGINAS</small><h3 id="tituloMissoes">Leia. Conquiste. Personalize.</h3><p class="missoes-resumo">${Math.floor(stats.seconds / 60)} min de leitura · ${stats.completed} obras concluídas · ${stats.days} metas cumpridas</p></div><div class="xp-balance"><small>NÍVEL ${1+Math.floor(xp/1000)}</small><strong>${rewardNumber(xp)} <span>XP</span></strong><progress value="${xp%1000}" max="1000" aria-label="Progresso até o próximo nível"></progress><small>${rewardNumber(1000-xp%1000)} XP para o próximo nível</small></div></div>
       ${painelEvento(state)}
+      ${noxusStatus ? `<section class="painel noxus-event" aria-label="Evento de Noxus"><div class="noxus-event-head"><span class="noxus-event-badge">EVENTO DE NOXUS · IMPÉRIO DE FERRO E SANGUE</span><h3>Legião de Noxus · Molduras & Ícones Exclusivos</h3><p>Leia um conto, história, Lore ou HQ de qualquer personagem de Noxus (Darius, Swain, Katarina, LeBlanc, Draven, Riven, Samira, Mordekaiser, Ambessa, Talon, Sion e mais) para adquirir as 5 molduras e os 5 ícones exclusivos de Noxus.</p></div><div class="news-rewards noxus-rewards-grid">${noxusStatus.sets.map(s=>`<div class="noxus-reward-item ${s.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${s.complete?'✓ Conquistado':esc(s.roleLabel)}</small></div>`).join('')}</div><p class="noxus-progress-line">Conjuntos conquistados: <strong>${noxusStatus.completedSets} / ${noxusStatus.totalSets}</strong> · Tempo em obras de Noxus: ${Math.floor(noxusStatus.seconds/60)} min · Obras de Noxus lidas: ${noxusStatus.worksRead.length}</p><small>Cada conto, história, Lore ou HQ de qualquer personagem de Noxus lido (ou 1 minuto de leitura ativa em obra de Noxus) libera um conjunto completo de Moldura + Ícone de Noxus.</small><div class="noxus-actions"><button class="btn btn-pri" data-noxus-read="conto:noxus-trifarix">📜 Ler Conto de Noxus</button><button class="btn btn-sec" data-noxus-read="regiao:noxus">🗺️ Ler Lore de Noxus</button><button class="btn btn-sec" data-noxus-read="rhq:darius/bloodofnoxus">🗯️ Ler HQ Darius: Sangue de Noxus</button></div></section>` : ''}
       <section class="painel thunder-event"><h3>ThunderCats · Chamado da Terceira Terra</h3><p>Leia 10 minutos hoje para um sorteio diário e 60 minutos na semana para outro sorteio. Prêmios automáticos e gratuitos entre 15 molduras, ícones e temas ainda não conquistados. Sem repetições até completar a coleção.</p><div class="news-rewards">${EQThunderRewards.SETS.map(s=>`<div><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong></div>`).join('')}</div><p>Hoje: ${Math.floor((state.days[EQReadingRewards.dayKey()]?.seconds||0)/60)} / 10 min · Semana: ${Math.floor(Object.entries(state.days).filter(([d])=>d>=week.start&&d>='2026-10-28').reduce((n,[,v])=>n+v.seconds,0)/60)} / 60 min</p><p>${state.thunderDraws.daily?.key===EQReadingRewards.dayKey()?'✓ Sorteio diário realizado':'Sorteio diário disponível ao cumprir a meta'} · ${state.thunderDraws.weekly?.key===week.start?'✓ Sorteio semanal realizado':'Sorteio semanal disponível ao cumprir a meta'}</p><small>Horário de Brasília. A semana começa na segunda-feira. Só leitura ativa conta, a partir de 28/10/2026. Ao completar os 15 itens, a coleção fica concluída; não há prêmios pagos ou em dinheiro.</small><button class="btn btn-pri" data-quest-read>Ler para participar</button></section><div class="epic-challenges">${EQEpicRewards.status(state.epicProgress,EQReadingRewards.dayKey()).map(c=>`<article class="painel epic-challenge"><div class="epic-art">${EQRewardArt.avatar('sentinel')}${EQRewardArt.frame(c.option.id)}</div><div><small>${c.kind==='week'?'DESAFIO ÉPICO DA SEMANA':'COLEÇÃO ÉPICA DO MÊS'}</small><h3>${esc(c.option.label)}</h3><p>Leia ${c.target/60} minutos ${c.kind==='week'?'e conclua 2 obras nesta semana.':'e leia pelo menos 5 minutos em 8 dias deste mês.'}</p><progress value="${Math.min(c.seconds,c.target)}" max="${c.target}" aria-label="Tempo de leitura"></progress><p>${Math.floor(c.seconds/60)} / ${c.target/60} min · ${c.count} / ${c.countTarget} ${c.kind==='week'?'obras':'dias'}</p><strong>${EQReadingRewards.available(state,'frame',c.option.id)?'✓ Moldura conquistada':'Conquiste a moldura exclusiva'}</strong><br><button class="btn btn-pri" data-quest-read>Ler para progredir</button></div></article>`).join('')}</div><p class="epic-rules">A semana começa na segunda-feira; o mês, no dia 1, no horário de Brasília. Apenas leituras realizadas no período contam. A coleção tem 12 edições mensais programadas, que retornam anualmente; as conquistas ficam na conta.</p>
       <div class="quest-columns">
         <article class="quest-banner quest-gold"><span class="quest-badge">CAÇADA DA SEMANA</span><div class="quest-content"><div class="quest-emblem">${EQRewardArt.avatar('phoenix')}${EQRewardArt.frame('gold')}</div><div><h4>${week.done ? 'Uma semana de conquistas!' : 'Uma hora, muitas aventuras'}</h4><p>Some 60 minutos de leitura ativa nesta semana.</p><progress value="${Math.min(week.seconds,week.target)}" max="${week.target}" aria-label="Progresso da caçada semanal"></progress><div class="quest-progress"><span>${Math.floor(week.seconds/60)} de 60 min</span><strong>${week.done ? '✓ +300 XP recebidos' : '+300 XP ao concluir'}</strong></div><small>Até domingo, ${week.end.slice(8)}/${week.end.slice(5,7)}, às 23h59 · Brasília</small><div class="quest-actions"><button class="btn btn-pri" data-quest-read>Continuar lendo</button><details><summary>ⓘ Ver regras</summary><p>Leia nos leitores internos. O tempo da semana soma entre as obras. O bônus é automático, uma vez por semana, e permanece com você.</p></details></div></div></div></article>
@@ -3390,7 +3409,7 @@
       ${Object.entries(names).map(([kind,name])=>`<div class="reward-collection" id="reward-panel-${kind}" role="tabpanel" aria-labelledby="reward-tab-${kind}" ${rewardTab===kind?'':'hidden'}>${EQReadingRewards.OPTIONS[kind].map(o=>{
         const unlocked=EQReadingRewards.available(state,kind,o.id), equipped=selected[kind]===o.id;
         const mission=EQReadingRewards.MISSIONS.find(m=>m.reward===kind+':'+o.id);
-        const requirement=o.thunder ? 'Sorteio ThunderCats · diário e semanal' : o.epic ? (o.monthly?'Desafio mensal · a partir de '+o.release.slice(5,7)+'/'+o.release.slice(0,4):'Desafio épico semanal') : o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
+        const requirement=o.noxus ? 'Evento de Noxus · Ler conto, história, Lore ou HQ de Noxus' : o.thunder ? 'Sorteio ThunderCats · diário e semanal' : o.epic ? (o.monthly?'Desafio mensal · a partir de '+o.release.slice(5,7)+'/'+o.release.slice(0,4):'Desafio épico semanal') : o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
         return `<button type="button" class="reward-card ${equipped?'equipped':''} ${unlocked?'':'locked'}" data-reward-kind="${kind}" data-reward-id="${o.id}" data-reward-event="${!!o.event}" data-reward-earned="${unlocked}" data-reward-name="${esc(o.label)}" aria-pressed="${equipped}" ${unlocked?'':'disabled'} title="${esc(unlocked?'Equipar '+o.label:requirement)}"><span class="reward-card-state" aria-hidden="true">${equipped?'✓':unlocked?'':'🔒'}</span>${previaRecompensa(kind,o)}<strong>${esc(o.label)}</strong><span class="reward-card-cost">${equipped?'Equipado':unlocked?'Disponível · Equipar':esc(requirement)}</span></button>`;
       }).join('')}</div>`).join('')}
       <p id="rewardFilterStatus" role="status"></p>
@@ -3437,6 +3456,16 @@
       const reading=historico.find(h=>h.prog<.95 && candidates.some(it=>it.id===h.id));
       const item=candidates.find(it=>it.id===reading?.id) || candidates.find(it=>!estadoRecompensas().books['work:'+(it.readingKey||it.id)]?.completed) || candidates[0];
       if (item) abrirLeitura(item.id); else toast('Adicione uma HQ permitida à sua biblioteca para começar a missão.');
+    });
+    $$('[data-noxus-read]').forEach(button=>button.onclick=()=>{
+      const preferredId=button.dataset.noxusRead;
+      const target=REG.get(preferredId) || [...REG.values()].find(it=>conteudoPermitido(it)&&ehObraDeNoxus(it));
+      if (target && conteudoPermitido(target)) abrirLeitura(target.id);
+      else {
+        const fallback=[...REG.values()].find(it=>conteudoPermitido(it)&&ehObraDeNoxus(it));
+        if (fallback) abrirLeitura(fallback.id);
+        else toast('Abra ou importe uma história, conto, Lore ou HQ de Noxus para progredir no evento.');
+      }
     });
     filterRewards();
   }

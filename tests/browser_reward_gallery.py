@@ -10,7 +10,7 @@ with sync_playwright() as p:
     assert page.locator('.xp-balance strong').inner_text()=='2.660 XP'
     assert page.locator('[data-reward-id=flames]').is_enabled()
     assert page.locator('[data-reward-id=dragon_frame]').is_disabled()
-    assert page.locator('#reward-panel-frame .reward-card').count()==69
+    assert page.locator('#reward-panel-frame .reward-card').count()==74
     page.locator('[data-reward-id=flames]').click()
     assert page.locator('#headerAvatar').get_attribute('data-frame')=='flames'
     assert page.locator('#headerAvatar > .reward-frame-art').count()==1

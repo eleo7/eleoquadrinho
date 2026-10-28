@@ -53,11 +53,17 @@
   }
 
   const thunderFrameBoxes=[[7,433,0,60,447,563],[448,426,439,84,448,555],[879,423,865,78,446,530],[1306,432,1300,82,447,530],[1745,421,1731,51,446,580]];
+  const noxusFrameBoxes=[[0,236,0,96,236,330],[237,210,237,86,210,334],[448,210,448,95,210,323],[659,209,659,89,209,318],[869,231,869,89,230,324]];
   function frame(id) {
     const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
     if(thunder){
       const uid='eq-thunder-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=thunderFrameBoxes[thunder.index]||thunderFrameBoxes[0];
       return `<svg class="reward-frame-art thunder-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="724"/></clipPath></defs><svg x="4" y="-4" width="112" height="128" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/thundercats-frames.png" width="2172" height="724" clip-path="url(#${uid})"/></svg></svg>`;
+    }
+    const noxus=root.EQNoxusRewards?.SETS.find(s=>s.id===id);
+    if(noxus){
+      const uid='eq-noxus-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=noxusFrameBoxes[noxus.index]||noxusFrameBoxes[0];
+      return `<svg class="reward-frame-art noxus-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="529"/></clipPath></defs><svg x="2" y="-2" width="116" height="124" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/noxus-frames.png" width="1100" height="529" clip-path="url(#${uid})"/></svg></svg>`;
     }
 
     const epic=EQEpicRewards.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
@@ -88,6 +94,11 @@
     if(thunder){
       const uid='eq-thunder-av-'+(++sequence);
       return `<svg class="reward-avatar-art" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${thunder.index*434.4+8} 65 418 418" preserveAspectRatio="xMidYMid slice"><image href="assets/thundercats-avatars.png" width="2172" height="724"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${thunder.light}" stroke-opacity=".55" stroke-width="2"/></svg>`;
+    }
+    const noxus=root.EQNoxusRewards?.SETS.find(s=>s.id===id);
+    if(noxus){
+      const uid='eq-noxus-av-'+(++sequence);
+      return `<svg class="reward-avatar-art noxus-avatar" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${noxus.index*128+6} 6 116 116" preserveAspectRatio="xMidYMid slice"><image href="assets/noxus-avatars.png" width="640" height="128"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${noxus.accent}" stroke-opacity=".65" stroke-width="2"/></svg>`;
     }
 
     const set=Seasons.find(id);if(set)return heroAvatar(set,id.startsWith('event_'));
