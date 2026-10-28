@@ -107,11 +107,13 @@
       rota();
       carregarArquivosLocais();
       mostrarNovidades();
+      EQDirectTransfers.start({user,api:EQAccount.api,library:BD,open:()=>{ir('perfil');setTimeout(()=>$('#transferPanel')?.scrollIntoView({block:'start'}),100);}});
       if (!reader.dirty && !catalog.dirty) syncStatus('Conta conectada. Dados carregados da nuvem.');
     },
     saindo: false,
     sessaoEncerrada: false,
     async sair() {
+      EQDirectTransfers.dispose();
       $('#releaseNews')?.remove();
       $('#achievementLaunch')?.remove();
       if (this.saindo) return;
@@ -3862,6 +3864,7 @@
       ${painelMissoes()}
       <div id="userAccessPanel"></div>
       ${painelEventosProgramados()}
+      <div id="transferPanel"></div>
       ${centralNovidades()}
       ${gerenciadorUniversos()}
 
@@ -3884,6 +3887,7 @@
     configurarMinhasConquistas();
     configurarUniversos();
     configurarEventosProgramados();
+    EQDirectTransfers.mount($('#transferPanel'));
     configurarMissoes();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
     $('#btnEditarPerfil')?.addEventListener('click', () => abrirModalAuth('editar'));

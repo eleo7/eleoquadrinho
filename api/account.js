@@ -3,6 +3,7 @@ const UniverseTree = require('../js/universe-tree');
 const Scheduled = require('../js/scheduled-events');
 const Rewards = require('../js/reading-rewards');
 const Access = require('../js/content-access');
+const {transferAction}=require('../server/transfers');
 const { communityAction } = require('../server/community');
 const { usersAction } = require('../server/user-admin');
 const { uploadCover, readCover } = require('../server/covers');
@@ -124,9 +125,10 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, revoked });
     }
     const identity = await authenticate(req, res);
-    if (['community', 'users', 'state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
+    if (['transfers', 'community', 'users', 'state', 'catalog', 'profile', 'file-upload', 'file-read', 'storage-status', 'cover-upload'].includes(action) && req.query.account !== identity.id) throw new HttpError(403, 'A conta mudou em outra aba. Recarregue a página antes de continuar.');
     const row = await profile(identity.id);
     row.access = Access.normalize(identity.app_metadata?.content_access);
+    if(action==='transfers')return res.status(200).json(await transferAction(req.method,body,row));
     if (action === 'community') return res.status(200).json(await communityAction(req.method, body, row));
     if (action === 'users') return res.status(200).json(await usersAction(req.method, body, row, req.query));
     if (action === 'cover-upload' && req.method === 'POST') return res.status(200).json(await uploadCover(body, row));

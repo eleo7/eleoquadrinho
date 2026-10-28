@@ -306,3 +306,11 @@ test('scheduled event catalog writes require admin and valid rewards',async()=>{
  assert.equal((await call('catalog','PUT',{data:{events:[e]},revision:0})).status,200);
  assert.equal((await call('catalog','PUT',{data:{events:[{...e,reward:'invented'}]},revision:0})).status,400);
 });
+
+test('direct transfers enforce authenticated account and restrict offer publishing',async()=>{
+ backend({'/rest/v1/rpc/hq_transfer':options=>{assert.equal(JSON.parse(options.body).actor,'reader-id');return Response.json([]);}});
+ assert.equal((await call('transfers','POST',{operation:'list'})).status,200);
+ assert.equal((await call('transfers','POST',{operation:'list'},{},'someone-else')).status,403);
+ assert.equal((await call('transfers','POST',{operation:'publish',payload:{title:'HQ',items:[]}})).status,403);
+ assert.equal((await call('transfers','POST',{operation:'signal',payload:{signal:{type:'offer',sdp:'a'.repeat(64001)}}})).status,400);
+});

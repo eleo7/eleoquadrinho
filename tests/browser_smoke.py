@@ -50,6 +50,8 @@ def connect(context, role='reader'):
             assert any(item['id'] == body['id'] and item.get('storagePath') for item in catalog['data']['externas'])
             item = next(item for item in catalog['data']['externas'] if item['id'] == body['id'])
             result = {'urls': [uploaded[path] for path in item['storageParts']], 'size': item['storageSize']}
+        elif action == 'transfers':
+            assert body['operation'] in ['offers','list']; result={'data':[]}
         elif action == 'users':
             assert role == 'admin'
             result = {'users': [], 'hasMore': False, 'page': 1}
