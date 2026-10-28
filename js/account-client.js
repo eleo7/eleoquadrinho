@@ -42,6 +42,29 @@
     }
     return replace(data);
   }
+  // Reader snapshots are bookmarks, not a second copy of the local book payload.
+  function prepareReaderState(data) {
+    if(!data||typeof data!=='object')return data;
+    function bookmark(item){
+      if(!item||typeof item!=='object'||Array.isArray(item))return item;
+      const local=String(item.id||'').startsWith('local:')||item.localOnly===true;
+      const payload=new Set(['blob','blobs','pdfDoc','pdfBytes','arrayBuffer','texto','textoLore','paginas','pages','urls','arquivo','conteudo']);
+      const out={};
+      for(const [key,value]of Object.entries(item)){
+        if(local&&payload.has(key))continue;
+        if(['blob','blobs','pdfDoc','pdfBytes','arrayBuffer'].includes(key))continue;
+        if(typeof value==='string'&&(/^(data:image\/|blob:)/.test(value)))continue;
+        // Page images are resolved from the catalog or IndexedDB when a book opens.
+        if(Array.isArray(value)&&value.some(v=>typeof v==='string'&&/^(data:|blob:)/.test(v)))continue;
+        out[key]=value;
+      }
+      return out;
+    }
+    const next={...data};
+    if(Array.isArray(data.historico))next.historico=data.historico.map(h=>({...h,item:bookmark(h.item)}));
+    if(data.salvos&&typeof data.salvos==='object')next.salvos=Object.fromEntries(Object.entries(data.salvos).map(([id,item])=>[id,bookmark(item)]));
+    return JSON.stringify(next)===JSON.stringify(data)?data:next;
+  }
   class SyncDocument {
     constructor(kind, account, notify, transport = api, storage = localStorage) {
       this.kind = kind; this.account = account; this.notify = notify; this.transport = transport; this.storage = storage;
@@ -59,12 +82,14 @@
         if (this.conflict) this.notify('Há alterações pendentes e uma versão mais recente na nuvem. Baixe o backup antes de recarregar.', true);
         else this.schedule();
       }
+      if(this.kind==='state'){const prepared=prepareReaderState(this.data);if(prepared!==this.data){this.data=prepared;this.dirty=true;this.persist();if(!this.conflict)this.schedule();}}
       if (this.kind === 'catalog' && !this.dirty && hasInlineImages(this.data)) { this.dirty = true; this.persist(); this.schedule(); }
       return this.data;
     }
     update(patch) {
       if (!this.loaded) throw new Error('Aguarde o carregamento da conta.');
       this.data = { ...this.data, ...JSON.parse(JSON.stringify(patch)) };
+      if(this.kind==='state')this.data=prepareReaderState(this.data);
       this.dirty = true;
       this.persist(); this.schedule();
     }
@@ -86,6 +111,7 @@
         while (this.dirty) {
           let snapshot = this.data;
           try {
+            if(this.kind==='state'){const prepared=prepareReaderState(snapshot);if(this.data===snapshot)this.data=prepared;snapshot=prepared;}
             if (this.kind === 'catalog') {
               const prepared = await prepareCatalog(snapshot, this.account, this.transport);
               if (this.data === snapshot) this.data = prepared;
@@ -107,7 +133,7 @@
       try { return await this.running; } finally { this.running = null; }
     }
   }
-  const exported = { api, SyncDocument, prepareCatalog };
+  const exported = { api, SyncDocument, prepareCatalog, prepareReaderState };
   if (typeof module !== 'undefined') module.exports = exported;
   else root.EQAccount = exported;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -56,3 +56,17 @@ test('updates made during a request are saved after that request completes', asy
   doc.update({ salvos: { second: true } }); release(); await saving;
   assert.equal(calls, 2); assert.equal(doc.dirty, false);
 });
+
+test('oversized local reader bookmarks sync without duplicating images or files and preserve progress/rewards',async()=>{
+ const {prepareReaderState}=require('../js/account-client');
+ const image='data:image/jpeg;base64,'+'A'.repeat(150000);
+ const book={id:'local:big',titulo:'Minha HQ',colecao:'dc',serieId:'serie:1',localOnly:true,capa:image,paginas:Array(20).fill(image),textoLore:'local story',blobs:[{}]};
+ const data={historico:[{id:book.id,item:book,prog:.72,pos:14,quando:123}],salvos:{[book.id]:book},prefs:{readingRewards:{totalSeconds:900},personalShelves:{Favoritas:[book.id]}}};
+ const before=JSON.stringify(data);let saved;
+ const cache=storage();cache.setItem('eq:pending:reader:state',JSON.stringify({data,revision:2}));
+ const transport=async(_,method,body)=>{if(method==='GET')return{data:{},revision:2};assert.ok(Buffer.byteLength(JSON.stringify(body))<2000000);saved=body.data;return{revision:3};};
+ const doc=new SyncDocument('state','reader',()=>{},transport,cache);await doc.load();await doc.flush();
+ assert.equal(saved.historico[0].pos,14);assert.equal(saved.historico[0].prog,.72);assert.equal(saved.salvos[book.id].serieId,'serie:1');assert.deepEqual(saved.prefs,data.prefs);assert.equal(saved.salvos[book.id].paginas,undefined);assert.equal(saved.salvos[book.id].capa,undefined);
+ assert.equal(JSON.stringify(data),before);assert.equal(cache.getItem(doc.key),undefined);assert.equal(doc.dirty,false);
+ const shared={salvos:{x:{id:'ext:x',textoLore:'Shared story',capa:'https://example.com/cover.jpg',paginas:['https://example.com/page.jpg']}}};assert.deepEqual(prepareReaderState(shared),shared);
+});
