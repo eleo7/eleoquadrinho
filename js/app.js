@@ -3427,8 +3427,9 @@
     document.body.dataset.libraryLayout = selected.layout;
     const header = $('#headerAvatar');
     if (header) { header.innerHTML = avatarRecompensa(Auth.usuario, state) + (selected.frame !== 'default' ? EQRewardArt.frame(selected.frame) : ''); header.dataset.frame = selected.frame; }
-    const avatar = $('#aba-perfil .perfil-avatar-wrap');
-    if (avatar && Auth.usuario) { avatar.innerHTML = avatarRecompensa(Auth.usuario, state) + (selected.frame !== 'default' ? EQRewardArt.frame(selected.frame) : ''); avatar.dataset.frame = selected.frame; }
+    $$('#aba-perfil .perfil-avatar-wrap').forEach(avatar => {
+      if (Auth.usuario) { avatar.innerHTML = avatarRecompensa(Auth.usuario, state) + (selected.frame !== 'default' ? EQRewardArt.frame(selected.frame) : ''); avatar.dataset.frame = selected.frame; }
+    });
   }
   function guardarRecompensas(next) {
     const beforeState = estadoRecompensas();
@@ -3593,6 +3594,211 @@
     return { lidos, emAndamento, nSalvos, nFinais, conquistas };
   }
 
+  let perfilAba = 'conquistas';
+  let conquistasState = { filter: 'all', query: '' };
+
+  function painelMinhasConquistas(st) {
+    sincronizarThunderCatsV1();
+    const state = estadoRecompensas();
+    const unlocked = EQReadingRewards.unlockedAchievements(state);
+    const medalsUnlocked = st.conquistas.filter(c => c.liberada).length;
+    return `<section id="painel-minhas-conquistas" class="painel minhas-conquistas-painel" role="tabpanel" aria-labelledby="tab-perfil-conquistas">
+      <div class="conquistas-head">
+        <div>
+          <span class="conquistas-badge">SUA COLEÇÃO DESBLOQUEADA · AVATAR GLOBAL</span>
+          <h3 id="tituloMinhasConquistas">🏆 Minhas Conquistas</h3>
+          <p>Aqui estão todas as <strong>molduras</strong> e <strong>ícones</strong> já desbloqueados na sua conta. Equipe qualquer item desbloqueado para exibi-lo como seu <strong>Avatar Global</strong> no topo do site e no seu perfil.</p>
+        </div>
+        <div class="global-avatar-showcase" role="region" aria-label="Avatar Global Ativo">
+          <div class="perfil-avatar-wrap conquistas-avatar-preview" data-frame="${esc(unlocked.equippedFrame.id)}">${avatarRecompensa(Auth.usuario, state)}${unlocked.equippedFrame.id !== 'default' ? EQRewardArt.frame(unlocked.equippedFrame.id) : ''}</div>
+          <div class="global-avatar-info">
+            <span class="global-avatar-pill">✓ Avatar Global Ativo</span>
+            <strong>${esc(unlocked.equippedAvatar.label)}</strong>
+            <small>Moldura: <b>${esc(unlocked.equippedFrame.label)}</b></small>
+            <div class="global-avatar-counts">
+              <span>🖼️ ${unlocked.frames.length}/${EQReadingRewards.OPTIONS.frame.length} Molduras</span>
+              <span>🎭 ${unlocked.avatars.length}/${EQReadingRewards.OPTIONS.avatar.length} Ícones</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="conquistas-toolbar">
+        <div class="conquistas-filtros" role="group" aria-label="Filtrar conquistas desbloqueadas">
+          <button type="button" class="conquista-filtro-btn ${conquistasState.filter === 'all' ? 'ativo' : ''}" data-conquistas-filter="all">Todos Desbloqueados <span>${unlocked.totalUnlocked}</span></button>
+          <button type="button" class="conquista-filtro-btn ${conquistasState.filter === 'frame' ? 'ativo' : ''}" data-conquistas-filter="frame">Molduras <span>${unlocked.frames.length}</span></button>
+          <button type="button" class="conquista-filtro-btn ${conquistasState.filter === 'avatar' ? 'ativo' : ''}" data-conquistas-filter="avatar">Ícones <span>${unlocked.avatars.length}</span></button>
+          ${unlocked.pairs.length ? `<button type="button" class="conquista-filtro-btn ${conquistasState.filter === 'pairs' ? 'ativo' : ''}" data-conquistas-filter="pairs">Conjuntos <span>${unlocked.pairs.length}</span></button>` : ''}
+          <button type="button" class="conquista-filtro-btn ${conquistasState.filter === 'medals' ? 'ativo' : ''}" data-conquistas-filter="medals">Medalhas <span>${medalsUnlocked}/${st.conquistas.length}</span></button>
+        </div>
+        <label class="conquistas-busca-label">Buscar conquista
+          <input id="conquistasSearch" type="search" placeholder="Buscar moldura ou ícone desbloqueado..." value="${esc(conquistasState.query)}" autocomplete="off">
+        </label>
+      </div>
+
+      ${unlocked.pairs.length ? `<div class="conquistas-bloco" data-conquistas-group="pairs">
+        <div class="conquistas-bloco-cab">
+          <h4>⚡ Conjuntos Completos Desbloqueados (Ícone + Moldura)</h4>
+          <span>${unlocked.pairs.length} conjunto(s) disponível(is)</span>
+        </div>
+        <div class="conquistas-grade">
+          ${unlocked.pairs.map(p => `<article class="conquista-card ${p.equipped ? 'equipped' : ''}" data-conquista-item data-conquista-search="${esc(p.label + ' ' + p.origin)}">
+            <div class="conquista-card-top">
+              <span class="conquista-tipo-tag">Conjunto</span>
+              <span class="conquista-status-tag ${p.equipped ? 'ativo' : ''}">${p.equipped ? '✓ Avatar Global' : 'Desbloqueado'}</span>
+            </div>
+            <div class="conquista-art-wrap">${previaRecompensa('frame', p.frame)}</div>
+            <strong>${esc(p.label)}</strong>
+            <small class="conquista-origem">${esc(p.origin)}</small>
+            <button type="button" class="btn ${p.equipped ? 'btn-sec' : 'btn-pri'} conquista-equip-btn" data-equip-global-pair="${esc(p.id)}" aria-pressed="${p.equipped}">${p.equipped ? '✓ Equipado no Avatar Global' : 'Equipar Conjunto como Avatar Global'}</button>
+          </article>`).join('')}
+        </div>
+      </div>` : ''}
+
+      <div class="conquistas-bloco" data-conquistas-group="frame">
+        <div class="conquistas-bloco-cab">
+          <h4>🖼️ Molduras Desbloqueadas</h4>
+          <span>${unlocked.frames.length} de ${EQReadingRewards.OPTIONS.frame.length} desbloqueadas</span>
+        </div>
+        <div class="conquistas-grade">
+          ${unlocked.frames.map(f => `<article class="conquista-card ${f.equipped ? 'equipped' : ''}" data-conquista-item data-conquista-kind="frame" data-conquista-id="${esc(f.id)}" data-conquista-search="${esc(f.label + ' ' + f.origin)}">
+            <div class="conquista-card-top">
+              <span class="conquista-tipo-tag">Moldura</span>
+              <span class="conquista-status-tag ${f.equipped ? 'ativo' : ''}">${f.equipped ? '✓ Equipada' : 'Desbloqueada'}</span>
+            </div>
+            <div class="conquista-art-wrap">${previaRecompensa('frame', f)}</div>
+            <strong>${esc(f.label)}</strong>
+            <small class="conquista-origem">${esc(f.origin)}</small>
+            <button type="button" class="btn ${f.equipped ? 'btn-sec' : 'btn-pri'} conquista-equip-btn" data-equip-global-kind="frame" data-equip-global-id="${esc(f.id)}" aria-pressed="${f.equipped}">${f.equipped ? '✓ Equipada no Avatar Global' : 'Equipar como Avatar Global'}</button>
+          </article>`).join('')}
+        </div>
+      </div>
+
+      <div class="conquistas-bloco" data-conquistas-group="avatar">
+        <div class="conquistas-bloco-cab">
+          <h4>🎭 Ícones Desbloqueados</h4>
+          <span>${unlocked.avatars.length} de ${EQReadingRewards.OPTIONS.avatar.length} desbloqueados</span>
+        </div>
+        <div class="conquistas-grade">
+          ${unlocked.avatars.map(a => `<article class="conquista-card ${a.equipped ? 'equipped' : ''}" data-conquista-item data-conquista-kind="avatar" data-conquista-id="${esc(a.id)}" data-conquista-search="${esc(a.label + ' ' + a.origin)}">
+            <div class="conquista-card-top">
+              <span class="conquista-tipo-tag">Ícone</span>
+              <span class="conquista-status-tag ${a.equipped ? 'ativo' : ''}">${a.equipped ? '✓ Equipado' : 'Desbloqueado'}</span>
+            </div>
+            <div class="conquista-art-wrap">${previaRecompensa('avatar', a)}</div>
+            <strong>${esc(a.label)}</strong>
+            <small class="conquista-origem">${esc(a.origin)}</small>
+            <button type="button" class="btn ${a.equipped ? 'btn-sec' : 'btn-pri'} conquista-equip-btn" data-equip-global-kind="avatar" data-equip-global-id="${esc(a.id)}" aria-pressed="${a.equipped}">${a.equipped ? '✓ Equipado no Avatar Global' : 'Equipar como Avatar Global'}</button>
+          </article>`).join('')}
+        </div>
+      </div>
+
+      <div class="conquistas-bloco" data-conquistas-group="medals">
+        <div class="conquistas-bloco-cab">
+          <h4>🏅 Medalhas de Jornada do Leitor</h4>
+          <span>${medalsUnlocked} de ${st.conquistas.length} conquistadas</span>
+        </div>
+        <div class="conquistas-medalhas-grade">
+          ${st.conquistas.map(c => `<article class="conquista-medalha-card ${c.liberada ? 'liberada' : 'bloqueada'}" data-conquista-item data-conquista-search="${esc(c.nome + ' ' + c.desc)}">
+            <span class="conquista-medalha-icone" aria-hidden="true">${c.icone}</span>
+            <div>
+              <strong>${esc(c.nome)}</strong>
+              <p>${esc(c.desc)}</p>
+              <small>${c.liberada ? '✓ Conquista desbloqueada' : '🔒 Continue lendo para liberar'}</small>
+            </div>
+          </article>`).join('')}
+        </div>
+      </div>
+      <p id="conquistasFilterStatus" class="conquistas-status-msg" role="status"></p>
+    </section>`;
+  }
+
+  function configurarMinhasConquistas() {
+    const panel = $('#painel-minhas-conquistas');
+    if (!panel) return;
+    const searchInput = $('#conquistasSearch');
+
+    function aplicarFiltroConquistas() {
+      const q = norm(searchInput?.value || '');
+      const f = conquistasState.filter;
+      conquistasState = { filter: f, query: searchInput?.value || '' };
+      $$('[data-conquistas-group]', panel).forEach(group => {
+        const g = group.dataset.conquistasGroup;
+        const groupMatch = f === 'all' || f === g;
+        let visibleInGroup = 0;
+        $$('[data-conquista-item]', group).forEach(card => {
+          const textMatch = !q || norm(card.dataset.conquistaSearch).includes(q);
+          card.hidden = !(groupMatch && textMatch);
+          if (!card.hidden) visibleInGroup++;
+        });
+        group.hidden = !groupMatch || visibleInGroup === 0;
+      });
+      const totalVisible = $$('[data-conquista-item]', panel).filter(c => !c.hidden).length;
+      const statusEl = $('#conquistasFilterStatus');
+      if (statusEl) statusEl.textContent = totalVisible ? `${totalVisible} conquista(s) desbloqueada(s) exibida(s).` : 'Nenhuma conquista desbloqueada corresponde à busca.';
+    }
+
+    $$('[data-conquistas-filter]', panel).forEach(btn => {
+      btn.onclick = () => {
+        conquistasState.filter = btn.dataset.conquistasFilter;
+        $$('[data-conquistas-filter]', panel).forEach(b => b.classList.toggle('ativo', b === btn));
+        aplicarFiltroConquistas();
+      };
+    });
+    if (searchInput) searchInput.oninput = aplicarFiltroConquistas;
+
+    $$('[data-equip-global-kind]', panel).forEach(btn => {
+      btn.onclick = () => {
+        const kind = btn.dataset.equipGlobalKind;
+        const id = btn.dataset.equipGlobalId;
+        try {
+          const next = EQReadingRewards.equipGlobalAvatar(estadoRecompensas(), { kind, id });
+          guardarRecompensas(next);
+          const opt = EQReadingRewards.OPTIONS[kind]?.find(o => o.id === id);
+          toast(`✨ ${kind === 'frame' ? 'Moldura global equipada' : 'Ícone global equipado'}: ${opt?.label || id}!`);
+          renderPerfil();
+          $(`#painel-minhas-conquistas [data-equip-global-kind="${kind}"][data-equip-global-id="${id}"]`)?.focus({ preventScroll: true });
+        } catch (error) {
+          toast(error.message);
+        }
+      };
+    });
+
+    $$('[data-equip-global-pair]', panel).forEach(btn => {
+      btn.onclick = () => {
+        const pairId = btn.dataset.equipGlobalPair;
+        try {
+          const next = EQReadingRewards.equipGlobalAvatar(estadoRecompensas(), { pairId });
+          guardarRecompensas(next);
+          const opt = EQReadingRewards.OPTIONS.avatar?.find(o => o.id === pairId);
+          toast(`⚡ Conjunto equipado no Avatar Global: ${opt?.label || pairId}!`);
+          renderPerfil();
+          $(`#painel-minhas-conquistas [data-equip-global-pair="${pairId}"]`)?.focus({ preventScroll: true });
+        } catch (error) {
+          toast(error.message);
+        }
+      };
+    });
+
+    $$('[data-perfil-tab]', $('#aba-perfil')).forEach(tab => {
+      tab.onclick = () => {
+        perfilAba = tab.dataset.perfilTab;
+        $$('[data-perfil-tab]', $('#aba-perfil')).forEach(t => {
+          const active = t.dataset.perfilTab === perfilAba;
+          t.classList.toggle('ativa', active);
+          t.setAttribute('aria-selected', String(active));
+        });
+        const targetId = tab.getAttribute('aria-controls');
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (target) {
+          target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+        }
+      };
+    });
+
+    aplicarFiltroConquistas();
+  }
+
   function renderPerfil() {
     atualizarUniversos();
     const el = $('#aba-perfil');
@@ -3616,6 +3822,7 @@
     }
 
     const st = calcularEstatisticasPerfil();
+    const unlockedSummary = EQReadingRewards.unlockedAchievements(estadoRecompensas());
     const dataCriacao = new Date(u.criadoEm || Date.now()).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
 
     el.innerHTML = `
@@ -3645,7 +3852,13 @@
         <div class="stat-cartao"><span class="val">${st.nFinais}</span><span class="rot">🏆 Finais Descobertos</span></div>
       </div>
 
-      <nav class="profile-shortcuts" aria-label="Atalhos do perfil"><button data-profile-jump="tituloMissoes">🎯 Missões</button><button data-profile-jump="rewardSearch">✨ Recompensas</button><button data-profile-jump="userAccessPanel">⚙️ Preferências${Auth.admin?' e usuários':''}</button>${Auth.admin?'<button data-profile-jump="universeForm">🌌 Universos</button>':''}</nav>
+      <div class="perfil-abas" role="tablist" aria-label="Abas do Painel de Perfil">
+        <button type="button" role="tab" id="tab-perfil-conquistas" class="perfil-aba-btn ${perfilAba === 'conquistas' ? 'ativa' : ''}" data-perfil-tab="conquistas" aria-selected="${perfilAba === 'conquistas'}" aria-controls="painel-minhas-conquistas">🏆 Minhas Conquistas <span class="perfil-aba-badge">${unlockedSummary.totalUnlocked}</span></button>
+        <button type="button" role="tab" id="tab-perfil-visao" class="perfil-aba-btn ${perfilAba === 'visao' ? 'ativa' : ''}" data-perfil-tab="visao" aria-selected="${perfilAba === 'visao'}" aria-controls="tituloMissoes">🎯 Missões & Eventos</button>
+      </div>
+
+      <nav class="profile-shortcuts" aria-label="Atalhos do perfil"><button data-profile-jump="painel-minhas-conquistas">🏆 Conquistas Desbloqueadas</button><button data-profile-jump="tituloMissoes">🎯 Missões</button><button data-profile-jump="rewardSearch">✨ Recompensas</button><button data-profile-jump="userAccessPanel">⚙️ Preferências${Auth.admin?' e usuários':''}</button>${Auth.admin?'<button data-profile-jump="universeForm">🌌 Universos</button>':''}</nav>
+      ${painelMinhasConquistas(st)}
       ${painelMissoes()}
       <div id="userAccessPanel"></div>
       ${painelEventosProgramados()}
@@ -3668,6 +3881,7 @@
       refresh: atualizarPermissoes
     });
     $$('[data-profile-jump]',el).forEach(button=>button.onclick=()=>{const target=document.getElementById(button.dataset.profileJump);if(!target)return;const details=target.closest('details');if(details)details.open=true;target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});if(!target.matches('input,select,button,a'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});});
+    configurarMinhasConquistas();
     configurarUniversos();
     configurarEventosProgramados();
     configurarMissoes();

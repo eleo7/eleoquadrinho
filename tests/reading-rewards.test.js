@@ -130,3 +130,41 @@ test('event theme needs multiple active days even after time and books objective
   s=read(s,15,'two','2026-10-20');
   assert.ok(R.available(s,'theme','event_flash'));
 });
+test('Minhas Conquistas lists all unlocked frames and icons and equips them as global avatar', () => {
+  let s = R.normalize();
+  const initial = R.unlockedAchievements(s);
+  assert.deepEqual(initial.frames.map(f => f.id), ['default', 'steel']);
+  assert.deepEqual(initial.avatars.map(a => a.id), ['default', 'sentinel']);
+  assert.equal(initial.totalUnlocked, 4);
+  assert.equal(initial.equippedFrame.id, 'default');
+  assert.equal(initial.equippedAvatar.id, 'default');
+
+  s = read(s, 300, 'conto:noxus-trifarix', '2026-10-28', 1);
+  s = R.advance(s, { id: 'conto:noxus-trifarix', seconds: 20, progress: 1, day: '2026-10-28', noxus: true });
+  s = R.advance(s, { id: 'local:thundercats-v1-1', seconds: 20, progress: 1, day: '2026-10-28', thunderV1: true, hasV1Catalog: true });
+
+  const unlocked = R.unlockedAchievements(s);
+  assert.ok(unlocked.frames.some(f => f.id === 'bronze'));
+  assert.ok(unlocked.frames.some(f => f.id === 'noxus_darius' && f.origin === 'Evento de Noxus'));
+  assert.ok(unlocked.frames.some(f => f.id === 'thunder_liono' && f.origin === 'Evento ThunderCats'));
+  assert.ok(unlocked.avatars.some(a => a.id === 'owl'));
+  assert.ok(unlocked.avatars.some(a => a.id === 'noxus_darius' && a.origin === 'Evento de Noxus'));
+  assert.ok(unlocked.pairs.some(p => p.id === 'noxus_darius'));
+
+  s = R.equipGlobalAvatar(s, { kind: 'avatar', id: 'owl' });
+  assert.equal(R.appearance(s).avatar, 'owl');
+  assert.equal(R.unlockedAchievements(s).equippedAvatar.id, 'owl');
+
+  s = R.equipGlobalAvatar(s, { kind: 'frame', id: 'thunder_liono' });
+  assert.equal(R.appearance(s).frame, 'thunder_liono');
+  assert.equal(R.unlockedAchievements(s).equippedFrame.id, 'thunder_liono');
+
+  s = R.equipGlobalAvatar(s, { pairId: 'noxus_darius' });
+  assert.equal(R.appearance(s).avatar, 'noxus_darius');
+  assert.equal(R.appearance(s).frame, 'noxus_darius');
+  assert.ok(R.unlockedAchievements(s).pairs.find(p => p.id === 'noxus_darius').equipped);
+
+  assert.throws(() => R.equipGlobalAvatar(s, { kind: 'frame', id: 'dragon_frame' }));
+  assert.throws(() => R.equipGlobalAvatar(s, { pairId: 'thunder_mummra' }));
+});
+

@@ -178,9 +178,70 @@
     if (!available(state, kind, id)) throw new Error('Conclua a missão indicada para desbloquear esta recompensa.');
     state.appearance[kind] = id; return state;
   }
+  function originLabel(kind, option) {
+    if (!option || option.id === 'default') return 'Padrão da conta';
+    if (option.noxus) return 'Evento de Noxus';
+    if (option.thunder) return 'Evento ThunderCats';
+    if (option.epic) return option.monthly ? 'Coleção Épica Mensal' : 'Desafio Épico Semanal';
+    if (option.event) return 'Evento Semanal de Herói';
+    const mission = MISSIONS.find(m => m.reward === kind + ':' + option.id);
+    if (mission) return 'Missão · ' + mission.title;
+    if (option.xp !== undefined) return option.xp === 0 ? 'Desbloqueado no Nível 1' : `Progresso · ${option.xp.toLocaleString('pt-BR')} XP`;
+    return 'Conquista de Leitura';
+  }
+  function unlockedAchievements(input) {
+    const state = normalize(input);
+    const current = appearance(state);
+    const frames = OPTIONS.frame
+      .filter(o => available(state, 'frame', o.id))
+      .map(o => ({ ...o, kind: 'frame', unlocked: true, equipped: current.frame === o.id, origin: originLabel('frame', o) }));
+    const avatars = OPTIONS.avatar
+      .filter(o => available(state, 'avatar', o.id))
+      .map(o => ({ ...o, kind: 'avatar', unlocked: true, equipped: current.avatar === o.id, origin: originLabel('avatar', o) }));
+    const pairs = avatars
+      .filter(a => a.id !== 'default' && frames.some(f => f.id === a.id))
+      .map(a => {
+        const frame = frames.find(f => f.id === a.id);
+        return {
+          id: a.id,
+          label: a.label,
+          avatar: a,
+          frame,
+          equipped: current.avatar === a.id && current.frame === a.id,
+          origin: a.origin
+        };
+      });
+    return {
+      frames,
+      avatars,
+      pairs,
+      totalUnlocked: frames.length + avatars.length,
+      totalCatalog: OPTIONS.frame.length + OPTIONS.avatar.length,
+      equippedFrame: frames.find(f => f.id === current.frame) || frames[0],
+      equippedAvatar: avatars.find(a => a.id === current.avatar) || avatars[0]
+    };
+  }
+  function equipGlobalAvatar(input, spec = {}) {
+    let state = normalize(input);
+    if (spec && spec.pairId) {
+      if (!available(state, 'avatar', spec.pairId) || !available(state, 'frame', spec.pairId)) {
+        throw new Error('Conclua a missão indicada para desbloquear este conjunto.');
+      }
+      state = equip(state, 'avatar', spec.pairId);
+      state = equip(state, 'frame', spec.pairId);
+      return state;
+    }
+    if (spec && spec.kind && spec.id) {
+      if (!['frame', 'avatar'].includes(spec.kind)) throw new Error('Apenas molduras e ícones podem ser equipados no avatar global.');
+      return equip(state, spec.kind, spec.id);
+    }
+    if (spec && spec.avatar !== undefined) state = equip(state, 'avatar', spec.avatar);
+    if (spec && spec.frame !== undefined) state = equip(state, 'frame', spec.frame);
+    return state;
+  }
   function activeSeconds({ elapsed, visible, focused, reading, idle }) {
     return visible && focused && reading && idle <= 90000 && elapsed > 0 && elapsed <= 20000 ? Math.floor(elapsed / 1000) : 0;
   }
-  const api = { event, xp, weekly, weekStart, GOALS, MISSIONS, OPTIONS, normalize, metrics, missions, available, appearance, dayKey, advance, setGoal, equip, activeSeconds };
+  const api = { event, xp, weekly, weekStart, GOALS, MISSIONS, OPTIONS, normalize, metrics, missions, available, appearance, dayKey, advance, setGoal, equip, originLabel, unlockedAchievements, equipGlobalAvatar, activeSeconds };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.EQReadingRewards = api;
 })(globalThis);
