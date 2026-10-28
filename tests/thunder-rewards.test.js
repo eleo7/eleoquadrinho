@@ -53,12 +53,28 @@ test('Noxus event rewards unlock frames and icons when reading Noxus stories, lo
  assert.equal(N.isNoxusWork('rserie:lux'),false);
 
  let s=R.normalize({});
+ let st0=N.status(s);
+ assert.equal(st0.percent,0);
+ assert.equal(st0.remainingSets,5);
+ assert.equal(st0.totalTargetSeconds,300);
+ assert.equal(st0.nextSet.id,'noxus_darius');
+
  s=R.advance(s,{id:'lol:Swain',seconds:20,progress:0.8,day:'2026-10-28'});
  assert.equal(R.available(s,'frame','noxus_swain'),true);
  assert.equal(R.available(s,'avatar','noxus_swain'),true);
+ let st1=N.status(s);
+ assert.equal(st1.completedSets,1);
+ assert.equal(st1.remainingSets,4);
+ assert.equal(st1.percent,20);
+ assert.equal(st1.effectiveSeconds,60);
 
  s=R.advance(s,{id:'rhq:darius/bloodofnoxus',seconds:20,progress:0.9,day:'2026-10-28'});
  assert.equal(R.available(s,'frame','noxus_darius'),true);
  assert.equal(R.available(s,'avatar','noxus_darius'),true);
+ let st2=N.status(s);
+ assert.equal(st2.completedSets,2);
+ assert.equal(st2.remainingSets,3);
+ assert.equal(st2.percent,40);
+ assert.equal(st2.nextSet.id,'noxus_katarina');
 });
 

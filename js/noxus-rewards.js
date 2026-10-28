@@ -272,18 +272,39 @@
       };
     });
     const completedSets = sets.filter(s => s.complete).length;
+    const totalSets = SETS.length;
+    const totalTargetSeconds = totalSets * SECONDS_PER_UNLOCK;
+    const effectiveSeconds = Math.min(
+      totalTargetSeconds,
+      Math.max(prog.seconds, completedSets * SECONDS_PER_UNLOCK)
+    );
+    const percent = Math.min(100, Math.round((effectiveSeconds / totalTargetSeconds) * 100));
+    const remainingSets = Math.max(0, totalSets - completedSets);
+    const totalSecondsRemaining = Math.max(0, totalTargetSeconds - effectiveSeconds);
     const nextSecondsRemaining =
-      completedSets >= SETS.length
+      completedSets >= totalSets
         ? 0
-        : Math.max(0, (completedSets + 1) * SECONDS_PER_UNLOCK - prog.seconds);
+        : Math.max(0, (completedSets + 1) * SECONDS_PER_UNLOCK - effectiveSeconds);
+    const currentStepSeconds =
+      completedSets >= totalSets
+        ? SECONDS_PER_UNLOCK
+        : Math.min(SECONDS_PER_UNLOCK, Math.max(0, effectiveSeconds - completedSets * SECONDS_PER_UNLOCK));
+    const nextSet = sets.find(s => !s.complete) || null;
     return {
       sets,
       completedSets,
-      totalSets: SETS.length,
+      totalSets,
+      remainingSets,
       seconds: prog.seconds,
+      effectiveSeconds,
+      totalTargetSeconds,
+      totalSecondsRemaining,
+      percent,
       worksRead: prog.worksRead,
       nextSecondsRemaining,
-      secondsPerUnlock: SECONDS_PER_UNLOCK
+      currentStepSeconds,
+      secondsPerUnlock: SECONDS_PER_UNLOCK,
+      nextSet
     };
   }
 
