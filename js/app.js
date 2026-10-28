@@ -634,6 +634,7 @@
   /* ---------------- Início ---------------- */
   let inicioPronto = false;
   function renderInicio() {
+    queueMicrotask(() => EQDirectTransfers.home());
     if (inicioFiltrado()) {
       clearInterval(destaqueTimer);
       const items = [...REG.values()].filter(it => conteudoPermitido(it) && !['heroi','wiki','regiao'].includes(it.tipo));

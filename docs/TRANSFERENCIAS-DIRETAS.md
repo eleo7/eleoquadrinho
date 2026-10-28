@@ -7,8 +7,8 @@ Execute `supabase/transfers.sql` inteiro no SQL Editor do projeto. Pode executar
 ## Uso
 
 1. Administrador abre **Pedidos → Oferecer HQs deste dispositivo**, seleciona uma HQ ou edições de uma série e publica uma oferta com título. Somente identificação, categoria e a primeira capa são guardadas no Supabase.
-2. Leitor abre **Pedidos**, vê as capas permitidas ao seu perfil e toca em **Solicitar**.
-3. O administrador recebe o contador de pedidos no topo (atualização a cada 20 segundos enquanto o site está visível). Em **Aceitar e enviar**, abre o pacote no navegador que possui os arquivos e aprova o pedido.
+2. Leitor vê **Coleções e HQs para solicitar** no Início, toca em uma capa, confere as edições e confirma **Solicitar HQ/série**.
+3. O administrador recebe o contador de pedidos no topo (atualização a cada 20 segundos enquanto o site está visível). Pode filtrar os pedidos por leitor. Em **Aceitar e enviar**, abre o pacote no navegador que possui os arquivos e aprova o pedido.
 4. Leitor toca em **Receber neste dispositivo**. Ambos mantêm a página aberta. A transferência usa WebRTC com canal ordenado e criptografado; o destinatário confere e importa o pacote atomicamente no IndexedDB.
 5. Ao terminar, o pedido aparece como recebido. Repetições de arquivos são ignoradas pelo hash. Perfil, histórico e favoritos não entram no pacote.
 
