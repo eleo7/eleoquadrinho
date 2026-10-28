@@ -53,6 +53,9 @@
   }
 
   function frame(id) {
+    const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
+    if(thunder)return `<svg class="reward-frame-art" viewBox="0 0 120 120" aria-hidden="true"><svg x="0" y="0" width="120" height="120" viewBox="${thunder.index*434.4} 0 434.4 724" preserveAspectRatio="none"><image href="assets/thundercats-frames.png" width="2172" height="724"/></svg></svg>`;
+
     const epic=EQEpicRewards.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
     const [dark,light,motif]=palettes[id]||palettes.default, uid='eq-frame-'+(++sequence);
     const ornaments={
@@ -77,6 +80,9 @@
     return `<svg class="reward-frame-art" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${uid}" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".28" stop-color="${dark}"/><stop offset=".52" stop-color="${light}"/><stop offset=".75" stop-color="${dark}"/><stop offset="1" stop-color="${light}"/></linearGradient></defs><path d="M22 13h76l9 9v76l-9 9H22l-9-9V22Z" fill="none" stroke="#05080e" stroke-width="11"/><path d="M22 13h76l9 9v76l-9 9H22l-9-9V22Z" fill="none" stroke="url(#${uid})" stroke-width="7"/><path d="M25 21h70l4 4v70l-4 4H25l-4-4V25Z" fill="none" stroke="${light}" stroke-opacity=".65"/><g fill="url(#${uid})" stroke="${dark}" stroke-width="1.1">${[0,90,180,270].map(angle=>`<g transform="rotate(${angle} 60 60) translate(5 5) scale(.77)">${ornament}</g>`).join('')}</g><path d="m60 7 6 7-6 8-6-8Z" fill="${light}" stroke="${dark}"/><path d="m60 99 4 6-4 6-4-6Z" fill="${light}"/></svg>`;
   }
   function avatar(id) {
+    const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
+    if(thunder)return `<svg class="reward-avatar-art" viewBox="0 0 100 100" aria-hidden="true"><svg width="100" height="100" viewBox="${thunder.index*434.4} 70 434.4 500" preserveAspectRatio="xMidYMid slice"><image href="assets/thundercats-avatars.png" width="2172" height="724"/></svg></svg>`;
+
     const set=Seasons.find(id);if(set)return heroAvatar(set,id.startsWith('event_'));
     const config={sentinel:['#27a8d7','#09243c'],ranger:['#7bd985','#133f32'],astronaut:['#b6caff','#20284f'],mage:['#c78cff','#381959'],cybercat:['#69f8e8','#30217b'],phoenix:['#ffbe51','#6c1c33']}[id]||['#27a8d7','#09243c'];
     const [light,dark]=config;

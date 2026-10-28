@@ -33,3 +33,11 @@ Ao abrir a conta, as recompensas recém-lançadas recebem uma janela de destaque
 “Depois”, o X e Escape deixam o lançamento pendente para a próxima abertura. “Não mostrar novamente este lançamento” seguido de fechar, ou “Ver meu perfil”, registra que aquelas recompensas já foram apresentadas. Esse registro acompanha a conta; novas recompensas com outros IDs continuam gerando avisos. As edições mensais só entram após sua data de lançamento. Os avisos de HQs permanecem no painel de novidades, sem repetir as recompensas da janela.
 
 A janela usa diálogo nativo, navegação por teclado, foco contido, restauração de foco e rolagem própria em telas pequenas. Respeita movimento reduzido. Ela anuncia recompensas disponíveis para conquistar, sem conceder itens nem alterar as metas de leitura.
+
+## Patch ThunderCats — 28/10/2026
+
+Cinco conjuntos inspirados em Lion-O, Tygra, Cheetara, Panthro e Mumm-Ra, cada um com moldura ilustrada, retrato e tema de cores (15 itens). O evento aparece no perfil e os itens também participam do aviso de novas conquistas.
+
+A cada dia com 10 minutos de leitura ativa, sorteia automaticamente um item ainda não possuído. A cada semana com 60 minutos ativos, sorteia mais um. Datas em Brasília, semana iniciada na segunda, contagem desta coleção a partir de 28/10/2026. Só há um sorteio por período, sem compras ou prêmio em dinheiro. Depois dos 15 itens, não se concedem duplicatas. As recompensas e o último período processado ficam salvos nas preferências da conta, como os demais cosméticos; não é um sorteio competitivo validado por servidor. A escolha é determinística por conta e período para não mudar ao recarregar.
+
+As molduras e retratos usam duas imagens compartilhadas, renderizadas por recortes SVG, evitando baixar um arquivo diferente para cada item. Os temas mudam cores da interface, sem papéis de parede.
