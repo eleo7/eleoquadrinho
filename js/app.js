@@ -3210,6 +3210,7 @@
         capa: o.capa,
         banner: o.capa,
         formato: o.formato,
+        receivedPackage: !!o.packageHash,
         readingKey: o.packageHash ? 'sha256:' + o.packageHash : o.id,
         localOnly: !!o.localOnly,
         storagePath: o.storagePath || '',
@@ -4227,12 +4228,13 @@
   const libraryViews={};
   function libraryPanel(items,origin) {
     const old=libraryViews[origin];
-    const state=libraryViews[origin]={items:items.filter(it=>conteudoPermitido(it)),query:old?.query||'',status:old?.status||'all',sort:old?.sort||'recent',limit:60};
-    return `<div class="library-browser" data-library="${origin}"><div class="library-toolbar"><label class="library-search">Buscar nesta biblioteca<input type="search" data-library-query value="${esc(state.query)}" placeholder="Título, personagem ou série…"></label><label>Leitura<select data-library-status><option value="all">Todas</option><option value="reading">Em andamento</option><option value="unread">Não lidas</option><option value="finished">Concluídas</option></select></label><label>Ordenar<select data-library-sort><option value="recent">Ordem da biblioteca</option><option value="title">Título A–Z</option><option value="progress">Maior progresso</option></select></label></div><p class="library-count" role="status" data-library-count></p><div class="grade" ${origin==='device'?'data-device-library':''} data-library-grid></div><div class="library-empty" data-library-empty hidden><span>📚</span><h3>Nenhuma obra nesta seleção</h3><p>Use outro título ou limpe os filtros. Se a biblioteca estiver vazia, importe uma HQ na aba Neste dispositivo.</p><button class="btn btn-sec" data-library-reset>Limpar filtros</button></div><button class="btn btn-sec library-more" ${origin==='device'?'data-device-more':''} data-library-more>Mostrar mais</button></div>`;
+    const state=libraryViews[origin]={items:items.filter(it=>conteudoPermitido(it)),query:old?.query||'',status:old?.status||'all',sort:old?.sort||'recent',received:old?.received||'all',receivedSeries:old?.receivedSeries||'',limit:60};
+    return `<div class="library-browser" data-library="${origin}"><div class="library-toolbar"><label class="library-search">Buscar nesta biblioteca<input type="search" data-library-query value="${esc(state.query)}" placeholder="Título, personagem ou série…"></label>${origin==='device'?`<label>Origem<select data-library-received><option value="all">Todos os arquivos</option><option value="series">Séries recebidas</option></select></label><label>Série recebida<select data-library-received-series><option value="">Todas as séries recebidas</option>${[...new Set(state.items.filter(it=>it.receivedPackage&&it.serieNome).map(it=>it.serieNome))].sort((a,b)=>a.localeCompare(b,'pt-BR',{numeric:true})).map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></label>`:''}<label>Leitura<select data-library-status><option value="all">Todas</option><option value="reading">Em andamento</option><option value="unread">Não lidas</option><option value="finished">Concluídas</option></select></label><label>Ordenar<select data-library-sort><option value="recent">Ordem da biblioteca</option><option value="title">Título A–Z</option><option value="progress">Maior progresso</option></select></label></div><p class="library-count" role="status" data-library-count></p><div class="grade" ${origin==='device'?'data-device-library':''} data-library-grid></div><div class="library-empty" data-library-empty hidden><span>📚</span><h3>Nenhuma obra nesta seleção</h3><p>Use outro título ou limpe os filtros. Se a biblioteca estiver vazia, importe uma HQ na aba Neste dispositivo.</p><button class="btn btn-sec" data-library-reset>Limpar filtros</button></div><button class="btn btn-sec library-more" ${origin==='device'?'data-device-more':''} data-library-more>Mostrar mais</button></div>`;
   }
   function updateLibrary(origin,append=false) {
     const box=$(`[data-library="${origin}"]`),s=libraryViews[origin];if(!box||!s)return;
     box.querySelector('[data-library-status]').value=s.status;box.querySelector('[data-library-sort]').value=s.sort;
+    const received=box.querySelector('[data-library-received]'),seriesFilter=box.querySelector('[data-library-received-series]');if(received)received.value=s.received;if(seriesFilter){seriesFilter.value=s.receivedSeries;if(seriesFilter.selectedIndex<0){s.receivedSeries='';seriesFilter.value='';}}
     const list=EQLibraryView.select(s.items,s,historico),end=Math.min(s.limit,list.length),start=append?Math.max(0,s.limit-60):0;
     const html=list.slice(start,end).map(it=>cartao(origin==='device'?{...it,localOnly:true}:reg(it))).join('');
     const grid=box.querySelector('[data-library-grid]');if(append)grid.insertAdjacentHTML('beforeend',html);else grid.innerHTML=html;
@@ -4247,17 +4249,17 @@
   });
   document.addEventListener('change',e=>{
     const box=e.target.closest('[data-library]');if(!box)return;const s=libraryViews[box.dataset.library];
-    if(e.target.matches('[data-library-status]'))s.status=e.target.value;else if(e.target.matches('[data-library-sort]'))s.sort=e.target.value;else return;
+    if(e.target.matches('[data-library-received]')){s.received=e.target.value;s.receivedSeries='';}else if(e.target.matches('[data-library-received-series]')){s.receivedSeries=e.target.value;s.received='series';}else if(e.target.matches('[data-library-status]'))s.status=e.target.value;else if(e.target.matches('[data-library-sort]'))s.sort=e.target.value;else return;
     s.limit=60;updateLibrary(box.dataset.library);
   });
   document.addEventListener('click',e=>{
     const button=e.target.closest('[data-library-more],[data-library-reset]');if(!button)return;
     const box=button.closest('[data-library]'),s=libraryViews[box.dataset.library];clearTimeout(s.timer);
     if(button.hasAttribute('data-library-more')){s.limit+=60;updateLibrary(box.dataset.library,true);}
-    else{s.query='';s.status='all';s.sort='recent';s.limit=60;box.querySelector('[data-library-query]').value='';updateLibrary(box.dataset.library);box.querySelector('[data-library-query]').focus();}
+    else{s.query='';s.status='all';s.sort='recent';s.received='all';s.receivedSeries='';s.limit=60;box.querySelector('[data-library-query]').value='';updateLibrary(box.dataset.library);box.querySelector('[data-library-query]').focus();}
   });
   function listaDispositivo(items) {
-    return `<p class="biblioteca-ajuda">Arquivos guardados nesta conta e neste navegador. Use um pacote de HQs para levar sua biblioteca a outro dispositivo.</p>`+libraryPanel(items,'device');
+    return `<p class="biblioteca-ajuda">Arquivos guardados nesta conta e neste navegador. Use o filtro Séries recebidas para encontrar as edições recebidas por transferência ou pacote de HQs.</p>`+libraryPanel(items,'device');
   }
 
   function configurarOrganizadorSeries(localItems = null) {

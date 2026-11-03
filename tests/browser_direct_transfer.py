@@ -37,6 +37,15 @@ with sync_playwright() as p:
  assert requests[0]['status']=='completed'
  result=u.evaluate("""async()=>{const lib=EQLocalLibrary.create(()=>({id:'user-reader',role:'reader'}));const entries=await lib.todos();return await(await lib.pegar(entries[0].id)).blob.text();}""")
  assert result=='Conteudo enviado diretamente.'
+ u.locator('nav [data-ir=biblioteca]').click();u.locator('#tabDevice').click()
+ u.locator('[data-library-received]').select_option('series')
+ u.locator('[data-library-received-series]').select_option('Série')
+ assert u.locator('[data-device-library] .cartao').count()==1
+ assert 'HQ direta' in u.locator('[data-device-library]').inner_text()
+ u.locator('[data-library=\"device\"] [data-library-query]').fill('resultado inexistente')
+ u.locator('[data-library=\"device\"] [data-library-reset]').click()
+ assert u.locator('[data-library-received]').input_value()=='all'
+ assert u.locator('[data-library-received-series]').input_value()==''
  u.set_viewport_size({'width':390,'height':844})
  assert u.evaluate('document.documentElement.scrollWidth<=innerWidth')
  assert not errors,errors

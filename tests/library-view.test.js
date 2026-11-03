@@ -13,3 +13,10 @@ test('library reading filters and progress order use each work history',()=>{
  assert.deepEqual(V.select(items,{sort:'progress'},history).map(i=>i.id),['b','a','c']);
  assert.equal(V.select(items,{query:'not found'}).length,0);
 });
+test('received series filters exclude local uploads and standalone transfers and combine with reading/search',()=>{
+ const works=[{id:'1',titulo:'Parte 1',serieNome:'Gatos',receivedPackage:true},{id:'2',titulo:'Parte 2',serieNome:'Gatos',receivedPackage:false},{id:'3',titulo:'Solo',receivedPackage:true},{id:'4',titulo:'Parte 1',serieNome:'Heróis',receivedPackage:true}];
+ assert.deepEqual(V.select(works,{received:'series'}).map(i=>i.id),['1','4']);
+ assert.deepEqual(V.select(works,{received:'series',receivedSeries:'Gatos',query:'parte',status:'finished'},[{id:'1',prog:1}]).map(i=>i.id),['1']);
+ assert.equal(V.select(works,{receivedSeries:'Inexistente'}).length,0);
+ assert.equal(V.select(works).length,4);
+});
