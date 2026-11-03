@@ -38,6 +38,11 @@ with sync_playwright() as p:
  result=u.evaluate("""async()=>{const lib=EQLocalLibrary.create(()=>({id:'user-reader',role:'reader'}));const entries=await lib.todos();return await(await lib.pegar(entries[0].id)).blob.text();}""")
  assert result=='Conteudo enviado diretamente.'
  u.locator('nav [data-ir=biblioteca]').click();u.locator('#tabDevice').click()
+ u.locator('[data-library-series]').click()
+ assert u.locator('[data-device-library] .cartao').count()==1
+ assert 'HQ direta' in u.locator('[data-device-library]').inner_text()
+ u.locator('[data-library-series-back]').click()
+ assert u.locator('[data-library-series]').count()==1
  u.locator('[data-library-received]').select_option('series')
  u.locator('[data-library-received-series]').select_option('Série')
  assert u.locator('[data-device-library] .cartao').count()==1

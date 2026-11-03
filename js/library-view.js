@@ -13,5 +13,16 @@
   else if(sort==='progress')list.sort((a,b)=>(progress.get(b.id)||0)-(progress.get(a.id)||0)||collator.compare(a.titulo||'',b.titulo||''));
   return list;
  }
- const api={select};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EQLibraryView=api;
+ function groups(items){
+  const result=[],byKey=new Map();
+  for(const item of items){
+   if(!item.receivedPackage||!item.serieNome){result.push(item);continue;}
+   const key=JSON.stringify([item.colecao||'',item.serieNome]);let group=byKey.get(key);
+   if(!group){group={receivedGroup:true,key,titulo:item.serieNome,capa:item.capa,items:[]};byKey.set(key,group);result.push(group);}
+   group.items.push(item);if(!group.capa&&item.capa)group.capa=item.capa;
+  }
+  for(const group of byKey.values())group.items.sort((a,b)=>(a.edicaoNum||0)-(b.edicaoNum||0)||collator.compare(a.titulo||'',b.titulo||''));
+  return result;
+ }
+ const api={select,groups};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.EQLibraryView=api;
 })(globalThis);

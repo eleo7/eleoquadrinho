@@ -20,3 +20,7 @@ test('received series filters exclude local uploads and standalone transfers and
  assert.equal(V.select(works,{receivedSeries:'Inexistente'}).length,0);
  assert.equal(V.select(works).length,4);
 });
+test('received editions group by series and universe without mixing standalone or uploaded files',()=>{
+ const books=[{id:'b',receivedPackage:true,serieNome:'Saga',colecao:'dc',edicaoNum:2},{id:'a',receivedPackage:true,serieNome:'Saga',colecao:'dc',edicaoNum:1},{id:'c',receivedPackage:true,serieNome:'Saga',colecao:'marvel'},{id:'d',serieNome:'Saga'},{id:'e',receivedPackage:true}];
+ const groups=V.groups(books);assert.equal(groups.length,4);assert.deepEqual(groups[0].items.map(i=>i.id),['a','b']);assert.notEqual(groups[0].key,groups[1].key);assert.equal(groups[2].id,'d');assert.equal(groups[3].id,'e');assert.equal(books[0].id,'b');
+});
