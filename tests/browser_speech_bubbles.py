@@ -4,8 +4,8 @@ with sync_playwright() as p:
  b=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
  context=b.new_context(service_workers='block');connect(context);page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
  login(page)
- page.evaluate("""()=>{document.querySelector('#leitorHQ').classList.add('aberto');const stage=document.querySelector('#hqPalco');stage.innerHTML='<canvas width="600" height="800" style="width:300px;height:400px"></canvas>';const ctx=stage.firstChild.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,600,800);ctx.fillStyle='black';ctx.font='30px sans-serif';ctx.fillText('Olá, herói!',40,100);window.Tesseract={createWorker:async()=>({recognize:async()=>({data:{text:'Olá, herói!'}}),terminate(){}})};window.spoken=[];speechSynthesis.speak=u=>window.spoken.push(u.text);speechSynthesis.cancel=()=>{};}""")
- page.locator('#hqBubbles').click();r=page.locator('#hqPalco canvas').bounding_box()
+ page.evaluate("""()=>{document.querySelector('#leitorHQ').classList.add('aberto');const stage=document.querySelector('#hqPalco');stage.innerHTML='<canvas width="600" height="800" style="width:300px;height:400px"></canvas>';const ctx=stage.firstChild.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,600,800);ctx.fillStyle='black';ctx.font='30px sans-serif';ctx.fillText('Olá, herói!',40,100);const img=document.createElement('img');img.src=stage.firstChild.toDataURL();stage.innerHTML='<div class="hq-pagina" style="width:300px;height:400px"></div>';stage.firstChild.append(img);window.Tesseract={createWorker:async()=>({recognize:async()=>({data:{text:'Olá, herói!'}}),terminate(){}})};window.spoken=[];speechSynthesis.speak=u=>window.spoken.push(u.text);speechSynthesis.cancel=()=>{};}""")
+ page.locator('#hqBubbles').click();r=page.locator('#hqPalco img').bounding_box()
  page.mouse.move(r['x']+10,r['y']+10);page.mouse.down();page.mouse.move(r['x']+240,r['y']+100);page.mouse.up()
  page.locator('[data-bubble-ocr]').click();page.wait_for_function("document.querySelector('[data-bubble-text]').value==='Olá, herói!'")
  page.locator('[data-bubble-speak]').click();assert page.evaluate('window.spoken')==['Olá, herói!']
@@ -13,5 +13,14 @@ with sync_playwright() as p:
  page.keyboard.press('Escape');assert page.locator('.bubble-dialog').count()==0
  assert page.locator('#leitorHQ').evaluate("e=>e.classList.contains('aberto')")
  assert page.locator('#hqBubbles').get_attribute('aria-pressed')=='false'
+ # Exercise actual touch events on the same pointer-events:none image used by the reader.
+ page.evaluate("document.querySelector('#hqBubbles').click()")
+ r=page.locator('#hqPalco img').bounding_box();cdp=context.new_cdp_session(page)
+ cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':r['x']+20,'y':r['y']+100}]})
+ cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':r['x']+180,'y':r['y']+190}]})
+ cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+ page.locator('.bubble-dialog').wait_for(state='visible')
+ assert page.locator('.bubble-dialog canvas').evaluate('c=>c.width>0&&c.height>0')
+ page.locator('.bubble-close').click()
  assert not errors,errors
  print('Bubble selection, enlargement, OCR UI (mock), narration UI (mock), mobile dialog and Escape: PASS');b.close()

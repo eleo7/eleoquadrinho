@@ -6,10 +6,17 @@ let overlay,selection,origin,dialog,worker,epoch=0,loader;
 function stopVoice(){window.speechSynthesis?.cancel();}
 function close(){origin=null;epoch++;stopVoice();dialog?.remove();dialog=null;overlay?.remove();overlay=null;toggle.setAttribute('aria-pressed','false');if(worker){worker.terminate();worker=null;}}
 function loadOCR(){if(window.Tesseract)return Promise.resolve(window.Tesseract);if(loader)return loader;loader=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';const timeout=setTimeout(()=>{script.remove();loader=null;reject(new Error('Reconhecimento indisponível. Confira a conexão ou digite a fala.'));},30000);script.onload=()=>{clearTimeout(timeout);resolve(window.Tesseract);};script.onerror=()=>{clearTimeout(timeout);script.remove();loader=null;reject(new Error('Não foi possível carregar o reconhecimento. Você pode digitar a fala.'));};document.head.append(script);});return loader;}
+function imageRect(source){
+ const r=source.getBoundingClientRect(),style=getComputedStyle(source);
+ if(style.objectFit!=='contain')return r;
+ const w=source.naturalWidth||source.width,h=source.naturalHeight||source.height,scale=Math.min(r.width/w,r.height/h);
+ const width=w*scale,height=h*scale,left=r.left+(r.width-width)/2,top=r.top+(r.height-height)/2;
+ return {left,top,width,height,right:left+width,bottom:top+height};
+}
 function show(source,area){
  overlay?.remove();overlay=null;toggle.setAttribute('aria-pressed','false');const token=++epoch;
  dialog=document.createElement('dialog');dialog.className='bubble-dialog';dialog.innerHTML='<button class="btn btn-sec bubble-close" aria-label="Fechar balão">✕</button><h2>💬 Balão em destaque</h2><canvas aria-label="Trecho ampliado da HQ"></canvas><p role="status" data-bubble-status>Amplie a fala, reconheça o texto e toque em Narrar.</p><label>Texto da fala<textarea rows="3" data-bubble-text placeholder="Você também pode digitar ou corrigir a fala…"></textarea></label><div class="bubble-actions"><button class="btn btn-sec" data-bubble-ocr>Reconhecer texto</button><button class="btn btn-pri" data-bubble-speak>▶ Narrar</button><button class="btn btn-sec" data-bubble-stop>Parar</button><button class="btn btn-sec" data-bubble-next>Selecionar outro balão</button></div>';
- reader.append(dialog);const canvas=dialog.querySelector('canvas'),rect=source.getBoundingClientRect();const width=source.naturalWidth||source.width,height=source.naturalHeight||source.height;
+ reader.append(dialog);const canvas=dialog.querySelector('canvas'),rect=imageRect(source);const width=source.naturalWidth||source.width,height=source.naturalHeight||source.height;
  const sx=(area.x-rect.left)/rect.width*width,sy=(area.y-rect.top)/rect.height*height,sw=area.w/rect.width*width,sh=area.h/rect.height*height;
  const scale=Math.min(3,1600/Math.max(sw,sh));canvas.width=Math.max(1,Math.round(sw*scale));canvas.height=Math.max(1,Math.round(sh*scale));canvas.getContext('2d').drawImage(source,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
  const status=dialog.querySelector('[data-bubble-status]'),text=dialog.querySelector('textarea'),speak=dialog.querySelector('[data-bubble-speak]');
@@ -22,8 +29,8 @@ function show(source,area){
 }
 function activate(){
  close();toggle.setAttribute('aria-pressed','true');overlay=document.createElement('div');overlay.className='bubble-selector';overlay.innerHTML='<div class="bubble-hint">Arraste um retângulo ao redor da fala <button class="btn btn-sec" aria-label="Cancelar seleção">Cancelar</button></div><div class="bubble-selection"></div>';reader.append(overlay);selection=overlay.querySelector('.bubble-selection');overlay.querySelector('button').onclick=close;
- overlay.onpointerdown=e=>{if(e.target.closest('button')||!e.isPrimary)return;overlay.style.pointerEvents='none';const target=document.elementFromPoint(e.clientX,e.clientY);overlay.style.pointerEvents='';const source=target?.closest('img,canvas');if(!source||!stage.contains(source))return;origin={x:e.clientX,y:e.clientY,source};overlay.setPointerCapture(e.pointerId);e.preventDefault();};
- overlay.onpointermove=e=>{if(!origin)return;const r=origin.source.getBoundingClientRect(),x=Math.max(r.left,Math.min(e.clientX,r.right)),y=Math.max(r.top,Math.min(e.clientY,r.bottom));origin.area={x:Math.min(origin.x,x),y:Math.min(origin.y,y),w:Math.abs(x-origin.x),h:Math.abs(y-origin.y)};Object.assign(selection.style,{display:'block',left:origin.area.x+'px',top:origin.area.y+'px',width:origin.area.w+'px',height:origin.area.h+'px'});};
+ overlay.onpointerdown=e=>{if(e.target.closest('button')||!e.isPrimary)return;overlay.style.pointerEvents='none';const target=document.elementFromPoint(e.clientX,e.clientY);overlay.style.pointerEvents='';const source=target?.closest('img,canvas')||target?.closest('.hq-pagina')?.querySelector('img,canvas');if(!source||!stage.contains(source))return;const r=imageRect(source);if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;origin={x:e.clientX,y:e.clientY,source};overlay.setPointerCapture(e.pointerId);e.preventDefault();};
+ overlay.onpointermove=e=>{if(!origin)return;const r=imageRect(origin.source),x=Math.max(r.left,Math.min(e.clientX,r.right)),y=Math.max(r.top,Math.min(e.clientY,r.bottom));origin.area={x:Math.min(origin.x,x),y:Math.min(origin.y,y),w:Math.abs(x-origin.x),h:Math.abs(y-origin.y)};Object.assign(selection.style,{display:'block',left:origin.area.x+'px',top:origin.area.y+'px',width:origin.area.w+'px',height:origin.area.h+'px'});};
  overlay.onpointerup=()=>{const chosen=origin;origin=null;if(chosen?.area?.w>12&&chosen.area.h>12)show(chosen.source,chosen.area);};overlay.onpointercancel=()=>{origin=null;selection.style.display='none';};
 }
 new MutationObserver(()=>{if(overlay||dialog)close();}).observe(stage,{childList:true});
