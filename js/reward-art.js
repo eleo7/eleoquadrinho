@@ -2,7 +2,11 @@
 (function(root) {
   'use strict';
   let sequence=0;
-  const Seasons=root.EQRewardSeasons;
+  const Seasons=root.EQRewardSeasons||(typeof require==='function'&&require('./reward-seasons'));
+  const Epic=root.EQEpicRewards||(typeof require==='function'&&require('./epic-rewards'));
+  const Thunder=root.EQThunderRewards||(typeof require==='function'&&require('./thunder-rewards'));
+  const Noxus=root.EQNoxusRewards||(typeof require==='function'&&require('./noxus-rewards'));
+  const Dbs=root.EQDbsRewards||(typeof require==='function'&&require('./dbs-rewards'));
   const palettes={
     default:['#8492a6','#d9e3f0','metal'],bronze:['#a65b32','#f4c598','metal'],silver:['#7a92b0','#eff8ff','metal'],
     steel:['#1473bd','#9aeaff','metal'],verdant:['#277b24','#b1f86b','leaf'],ice:['#168dcc','#beffff','ice'],gold:['#bd6b09','#ffe582','crown'],
@@ -54,19 +58,25 @@
 
   const thunderFrameBoxes=[[7,433,0,60,447,563],[448,426,439,84,448,555],[879,423,865,78,446,530],[1306,432,1300,82,447,530],[1745,421,1731,51,446,580]];
   const noxusFrameBoxes=[[0,236,0,96,236,330],[237,210,237,86,210,334],[448,210,448,95,210,323],[659,209,659,89,209,318],[869,231,869,89,230,324]];
+  const dbsFrameBoxes=[[0,234,36,71,186,285],[235,209,253,79,189,265],[445,222,470,82,177,255],[668,214,689,74,177,278],[883,230,910,82,171,255]];
   function frame(id) {
-    const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
+    const thunder=(root.EQThunderRewards||Thunder)?.SETS.find(s=>s.id===id);
     if(thunder){
       const uid='eq-thunder-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=thunderFrameBoxes[thunder.index]||thunderFrameBoxes[0];
       return `<svg class="reward-frame-art thunder-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="724"/></clipPath></defs><svg x="4" y="-4" width="112" height="128" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/thundercats-frames.png" width="2172" height="724" clip-path="url(#${uid})"/></svg></svg>`;
     }
-    const noxus=root.EQNoxusRewards?.SETS.find(s=>s.id===id);
+    const noxus=(root.EQNoxusRewards||Noxus)?.SETS.find(s=>s.id===id);
     if(noxus){
       const uid='eq-noxus-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=noxusFrameBoxes[noxus.index]||noxusFrameBoxes[0];
       return `<svg class="reward-frame-art noxus-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="529"/></clipPath></defs><svg x="2" y="-2" width="116" height="124" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/noxus-frames.png" width="1100" height="529" clip-path="url(#${uid})"/></svg></svg>`;
     }
+    const dbs=(root.EQDbsRewards||Dbs)?.SETS.find(s=>s.id===id);
+    if(dbs){
+      const uid='eq-dbs-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=dbsFrameBoxes[dbs.index]||dbsFrameBoxes[0];
+      return `<svg class="reward-frame-art dbs-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="413"/></clipPath></defs><svg x="2" y="-12" width="116" height="136" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/dbs-frames.png" width="1113" height="413" clip-path="url(#${uid})"/></svg></svg>`;
+    }
 
-    const epic=EQEpicRewards.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
+    const epic=(root.EQEpicRewards||Epic)?.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
     const [dark,light,motif]=palettes[id]||palettes.default, uid='eq-frame-'+(++sequence);
     const ornaments={
       metal:'<path d="M12 5 26 10 22 23 9 25 5 12Z"/><path d="m10 11 8-1 3 7-9 4Z" fill="#102132"/><circle cx="14" cy="14" r="2" fill="white"/>',
@@ -90,15 +100,20 @@
     return `<svg class="reward-frame-art" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${uid}" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".28" stop-color="${dark}"/><stop offset=".52" stop-color="${light}"/><stop offset=".75" stop-color="${dark}"/><stop offset="1" stop-color="${light}"/></linearGradient></defs><path d="M22 13h76l9 9v76l-9 9H22l-9-9V22Z" fill="none" stroke="#05080e" stroke-width="11"/><path d="M22 13h76l9 9v76l-9 9H22l-9-9V22Z" fill="none" stroke="url(#${uid})" stroke-width="7"/><path d="M25 21h70l4 4v70l-4 4H25l-4-4V25Z" fill="none" stroke="${light}" stroke-opacity=".65"/><g fill="url(#${uid})" stroke="${dark}" stroke-width="1.1">${[0,90,180,270].map(angle=>`<g transform="rotate(${angle} 60 60) translate(5 5) scale(.77)">${ornament}</g>`).join('')}</g><path d="m60 7 6 7-6 8-6-8Z" fill="${light}" stroke="${dark}"/><path d="m60 99 4 6-4 6-4-6Z" fill="${light}"/></svg>`;
   }
   function avatar(id) {
-    const thunder=root.EQThunderRewards?.SETS.find(s=>s.id===id);
+    const thunder=(root.EQThunderRewards||Thunder)?.SETS.find(s=>s.id===id);
     if(thunder){
       const uid='eq-thunder-av-'+(++sequence);
       return `<svg class="reward-avatar-art" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${thunder.index*434.4+8} 65 418 418" preserveAspectRatio="xMidYMid slice"><image href="assets/thundercats-avatars.png" width="2172" height="724"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${thunder.light}" stroke-opacity=".55" stroke-width="2"/></svg>`;
     }
-    const noxus=root.EQNoxusRewards?.SETS.find(s=>s.id===id);
+    const noxus=(root.EQNoxusRewards||Noxus)?.SETS.find(s=>s.id===id);
     if(noxus){
       const uid='eq-noxus-av-'+(++sequence);
       return `<svg class="reward-avatar-art noxus-avatar" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${noxus.index*128+6} 6 116 116" preserveAspectRatio="xMidYMid slice"><image href="assets/noxus-avatars.png" width="640" height="128"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${noxus.accent}" stroke-opacity=".65" stroke-width="2"/></svg>`;
+    }
+    const dbs=(root.EQDbsRewards||Dbs)?.SETS.find(s=>s.id===id);
+    if(dbs){
+      const uid='eq-dbs-av-'+(++sequence);
+      return `<svg class="reward-avatar-art dbs-avatar" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${dbs.index*128+4} 4 120 120" preserveAspectRatio="xMidYMid slice"><image href="assets/dbs-avatars.png" width="640" height="128"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${dbs.light}" stroke-opacity=".75" stroke-width="2.2"/></svg>`;
     }
 
     const set=Seasons.find(id);if(set)return heroAvatar(set,id.startsWith('event_'));
@@ -116,10 +131,15 @@
   }
   if(root.document) {
     const style=document.createElement('style');style.id='character-reward-themes';
-    style.textContent=Seasons.SETS.flatMap(set=>['hero_','event_'].map(prefix=>{
-      const id=prefix+set.id, accent=prefix==='event_'?'#ffdf83':set.light;
-      return `:root[data-site-theme="${id}"]{--bg:color-mix(in srgb,${set.dark} 20%,#050609);--bg2:color-mix(in srgb,${set.dark} 32%,#0b0d14);--card:color-mix(in srgb,${set.dark} 42%,#11141c);--card2:color-mix(in srgb,${set.dark} 52%,#151a25);--borda:color-mix(in srgb,${set.light} 30%,#242633);--txt:#fff8ef;--txt2:#c4c5d3;--acento:${accent};--acento2:${set.light}}:root[data-site-theme="${id}"] body{background-image:radial-gradient(ellipse at top right,${set.dark}44,transparent 65%)}[data-preview-theme="${id}"]{--preview-bg:${set.dark};--preview-accent:${accent}}`;
-    })).join('');document.head.append(style);
+    const dbsThemeCss=((root.EQDbsRewards||Dbs)?.SETS||[]).map(set=>`:root[data-site-theme="${set.id}"]{--bg:color-mix(in srgb,${set.dark} 24%,#050609);--bg2:color-mix(in srgb,${set.dark} 38%,#0b0d14);--card:color-mix(in srgb,${set.dark} 46%,#11141c);--card2:color-mix(in srgb,${set.dark} 58%,#151a25);--borda:color-mix(in srgb,${set.light} 35%,#242633);--txt:#fff8ef;--txt2:#c8d0e0;--acento:${set.light};--acento2:${set.dark}}:root[data-site-theme="${set.id}"] body{background-image:radial-gradient(ellipse at top right,${set.light}22,transparent 60%),radial-gradient(ellipse at bottom left,${set.dark}66,transparent 65%)}[data-preview-theme="${set.id}"]{--preview-bg:${set.dark};--preview-accent:${set.light};border-color:${set.light}66}`);
+    style.textContent=[
+      ...Seasons.SETS.flatMap(set=>['hero_','event_'].map(prefix=>{
+        const id=prefix+set.id, accent=prefix==='event_'?'#ffdf83':set.light;
+        return `:root[data-site-theme="${id}"]{--bg:color-mix(in srgb,${set.dark} 20%,#050609);--bg2:color-mix(in srgb,${set.dark} 32%,#0b0d14);--card:color-mix(in srgb,${set.dark} 42%,#11141c);--card2:color-mix(in srgb,${set.dark} 52%,#151a25);--borda:color-mix(in srgb,${set.light} 30%,#242633);--txt:#fff8ef;--txt2:#c4c5d3;--acento:${accent};--acento2:${set.light}}:root[data-site-theme="${id}"] body{background-image:radial-gradient(ellipse at top right,${set.dark}44,transparent 65%)}[data-preview-theme="${id}"]{--preview-bg:${set.dark};--preview-accent:${accent}}`;
+      })),
+      ...dbsThemeCss
+    ].join('');document.head.append(style);
   }
   root.EQRewardArt={frame,avatar};
+  if(typeof module==='object'&&module.exports)module.exports=root.EQRewardArt;
 })(globalThis);
