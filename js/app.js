@@ -101,6 +101,7 @@
       atualizarUniversos();
       [...drive, ...externas, ...herois, ...series].forEach(reg);
       Object.assign(prefs, reader.data.prefs || {});
+      prefs.mascot=reader.data.prefs?.mascot||'byte';prefs.mascotVisible=reader.data.prefs?.mascotVisible!==false;
       rewardSession = { id: null, at: performance.now(), activity: performance.now(), account: user.id };
       this.atualizarHeader();
       fecharModalAuth();
@@ -114,6 +115,7 @@
     sessaoEncerrada: false,
     async sair() {
       EQDirectTransfers.dispose();
+      EQMascots.dispose();
       $('#releaseNews')?.remove();
       $('#achievementLaunch')?.remove();
       if (this.saindo) return;
@@ -618,6 +620,7 @@
   }
   function ir(aba) { location.hash = aba; }
   function rota() {
+    queueMicrotask(atualizarMascote);
     if (fecharComunidade) { fecharComunidade(); fecharComunidade = null; }
     const h = decodeURIComponent(location.hash.slice(1)) || 'inicio';
     const [aba, arg] = h.split('/');
@@ -3426,7 +3429,17 @@
     dialog.addEventListener('keydown',e=>e.stopPropagation());
     dialog.showModal();
   }
+  function atualizarMascote(){
+    if(!Auth.usuario||Auth.saindo){EQMascots.dispose();return;}
+    const state=estadoRecompensas(),day=EQReadingRewards.dayKey();
+    const event=(catalogSync?.data.events||[]).find(e=>e.start<=day&&day<=e.end);
+    EQMascots.render({user:Auth.usuario.id,xp:EQReadingRewards.xp(state),selected:prefs.mascot||'byte',visible:prefs.mascotVisible!==false,
+      items:[...REG.values()].filter(it=>conteudoPermitido(it)),history:historico,event:event?.title,
+      save:(id,visible)=>{prefs.mascot=id;prefs.mascotVisible=visible;salvarPrefs();atualizarMascote();},
+      read:id=>abrirDetalhe(id),events:()=>{ir('perfil');setTimeout(()=>$('#tituloMissoes')?.scrollIntoView({block:'start'}),100);}});
+  }
   function aplicarRecompensas() {
+    queueMicrotask(atualizarMascote);
     const state = estadoRecompensas(), selected = EQReadingRewards.appearance(state);
     document.documentElement.dataset.siteTheme = selected.theme;
     document.body.dataset.libraryLayout = selected.layout;
@@ -3443,7 +3456,8 @@
     prefs.readingRewards = next;
     salvarPrefs(); aplicarRecompensas();
     const unlocked = EQReadingRewards.missions(next).filter(m => m.unlocked && !before.includes(m.id));
-    const labels = [...new Set([...unlocked.map(m => m.label), ...newlyEarned])];
+    const pets=EQMascots.unlocked(EQReadingRewards.xp(next)).filter(p=>!EQMascots.unlocked(EQReadingRewards.xp(beforeState)).some(old=>old.id===p.id)).map(p=>'Mascote '+p.name);
+    const labels = [...new Set([...unlocked.map(m => m.label), ...newlyEarned,...pets])];
     if (labels.length) toast('🎉 Recompensa desbloqueada: ' + labels.join(', ') + '. Veja seu perfil!');
     else if (Object.keys(next.weeklyWins).length > Object.keys(beforeState.weeklyWins).length) toast('🏆 Caçada da semana concluída! +300 XP.');
   }
@@ -3865,6 +3879,7 @@
       <nav class="profile-shortcuts" aria-label="Atalhos do perfil"><button data-profile-jump="painel-minhas-conquistas">🏆 Conquistas Desbloqueadas</button><button data-profile-jump="tituloMissoes">🎯 Missões</button><button data-profile-jump="rewardSearch">✨ Recompensas</button><button data-profile-jump="userAccessPanel">⚙️ Preferências${Auth.admin?' e usuários':''}</button>${Auth.admin?'<button data-profile-jump="universeForm">🌌 Universos</button>':''}</nav>
       ${painelMinhasConquistas(st)}
       ${painelMissoes()}
+      <section class="painel" id="mascotRewards"></section>
       <div id="userAccessPanel"></div>
       ${painelEventosProgramados()}
       <div id="transferPanel"></div>
@@ -3892,6 +3907,7 @@
     configurarEventosProgramados();
     EQDirectTransfers.mount($('#transferPanel'));
     configurarMissoes();
+    atualizarMascote();
     $('#btnMigrarPerfil')?.addEventListener('click', importarDadosAntigos);
     $('#btnEditarPerfil')?.addEventListener('click', () => abrirModalAuth('editar'));
     $('#btnSairPerfil')?.addEventListener('click', () => { if (confirm('Deseja realmente sair da conta?')) Auth.sair(); });
