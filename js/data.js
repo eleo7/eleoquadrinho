@@ -659,6 +659,36 @@ const CONTOS = [
 
         Machados giratórios cortam o ar sob o estandarte carmesim de Noxus. Seja nas muralhas de Basilich, nos corredores secretos da Rosa Negra ou no centro da arena, uma única lei une todos os campeões do império: a força acima de tudo.`)]
     ]
+  },
+
+  /* ===== DRAGON BALL SUPER · MULTIVERSO DOS DEUSES ===== */
+  {
+    id: 'dbs-torneio-poder', colecao: 'originais', dbs: true, titulo: 'Dragon Ball Super: Do Ki Divino ao Instinto Superior', sub: 'Crônica de Shenlong, Goku SSJ God, SSJ Blue, Instinto Superior e Zeno no Torneio do Poder', tempo: 6,
+    capitulos: [
+      ['O Despertar do Deus Super Saiyajin', P(`
+        Quando as sete Esferas do Dragão brilharam na Corporação Cápsula e o céu da Terra escureceu para a invocação de Shenlong, nem mesmo o dragão eterno pôde esconder seu temor diante de Bills, o Deus da Destruição do Sétimo Universo, e seu anjo guia Whis.
+
+        Para impedir a destruição da Terra, cinco Saiyajins de coração puro uniram suas mãos em torno de Son Goku. Uma chama carmesim ancestral envolveu seu espírito, despertando a lenda esquecida do planeta Vegeta: o Deus Super Saiyajin. Pela primeira vez, Goku sentiu o vasto oceano do Ki Divino — um poder sereno e flamejante capaz de ecoar pelo cosmos.`)],
+      ['Além do Azul: O Treinamento Divino', P(`
+        Não satisfeito em apenas tocar o domínio dos deuses, Goku treinou ao lado de Vegeta no planeta de Bills sob a tutela de Whis. Dominando o controle absoluto do Ki sem deixar uma única centelha escapar, os dois guerreiros fundiram a transformação Super Saiyajin com a aura de um deus.
+
+        Assim nasceu o Super Saiyajin Blue — uma aura azul cristalina e eletrizante que superou o retorno de Freeza Dourado, cruzou linhas temporais contra Goku Black e Zamasu, e abriu as portas para o grande desafio convocado pelo Rei de Tudo, Zeno.`)],
+      ['O Presságio Cósmico e o Torneio do Poder', P(`
+        No Reino do Vazio, oito universos lutaram pela própria sobrevivência na arena do Torneio do Poder. Diante da força colossal de Jiren, do Décimo Primeiro Universo, Goku viu todos os seus limites conhecidos ruírem. No abismo entre a derrota e a superação, seu corpo reagiu por conta própria.
+
+        Com olhos prateados e uma aura de galáxias silenciosas, surgiu o Presságio do Instinto Superior — a técnica que até os Deuses da Destruição lutam para alcançar. E nos segundos finais da arena em chamas, sob o olhar maravilhado dos dois Zeno-Sama, o cabelo de Goku resplandeceu em prata pura: o Instinto Superior Completo, gravando para sempre a lenda do Sétimo Universo.`)]
+    ]
+  },
+  {
+    id: 'dbs-esferas-deuses', colecao: 'originais', dbs: true, titulo: 'Dragon Ball Super: Shenlong e as Super Esferas do Dragão', sub: 'A lenda de Zarama, o desejo eterno e a jornada pelos doze universos', tempo: 5,
+    capitulos: [
+      ['As Esferas da Terra e de Namekusei', P(`
+        Desde que Bulma encontrou o jovem Goku nas montanhas com a esfera de quatro estrelas de seu avô Gohan, as Esferas do Dragão guiaram as maiores aventuras da Terra. Criadas originalmente pelos Namekuseijins a partir de fragmentos de relíquias divinas, elas invocam Shenlong para conceder desejos que restauram mundos e heróis.`)],
+      ['O Segredo dos Doze Universos', P(`
+        Em Dragon Ball Super, os guerreiros descobrem que as esferas da Terra e de Namekusei são apenas ecos das verdadeiras Super Esferas do Dragão — astros do tamanho de planetas inteiros forjados pelo Deus Dragão Zarama e espalhados entre o Sexto e o Sétimo Universo.
+
+        Ao final do Torneio do Poder, quando o Androide 17 pediu a Super Shenlong a restauração de todos os universos apagados, provou-se que a empatia dos mortais era a verdadeira resposta ao teste supremo de Zeno-Sama.`)]
+    ]
   }
 ];
 

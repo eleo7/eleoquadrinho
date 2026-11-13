@@ -168,3 +168,59 @@ test('Minhas Conquistas lists all unlocked frames and icons and equips them as g
   assert.throws(() => R.equipGlobalAvatar(s, { pairId: 'thunder_mummra' }));
 });
 
+test('Dragon Ball Super event unlocks 5 frames, 5 icons, and 5 themes and integrates with Minhas Conquistas', () => {
+  const Dbs = require('../js/dbs-rewards');
+  const RewardArt = require('../js/reward-art');
+  assert.equal(Dbs.SETS.length, 5);
+  assert.equal(Dbs.OPTIONS.frame.length, 5);
+  assert.equal(Dbs.OPTIONS.avatar.length, 5);
+  assert.equal(Dbs.OPTIONS.theme.length, 5);
+
+  let s = R.normalize();
+  assert.equal(Dbs.status(s).unlockedCount, 0);
+
+  // Reading a Dragon Ball Super work unlocks Shenlong set immediately (1 set = 3 rewards: frame + avatar + theme)
+  s = R.advance(s, { id: 'conto:dbs-esferas-deuses', seconds: 15, progress: 0.6, day: '2026-11-08', dbs: true, work: { id: 'dbs-esferas-deuses', titulo: 'As Esferas do Dragão e o Ritual de Shenlong' } });
+  const st1 = Dbs.status(s);
+  assert.equal(st1.completedSets, 1);
+  assert.equal(st1.unlockedCount, 3);
+  assert.ok(R.available(s, 'frame', 'dbs_shenlong'));
+  assert.ok(R.available(s, 'avatar', 'dbs_shenlong'));
+  assert.ok(R.available(s, 'theme', 'dbs_shenlong'));
+
+  // Unlock second set via reading a second DBS work
+  s = R.advance(s, { id: 'conto:dbs-batalha-deuses', seconds: 15, progress: 0.6, day: '2026-11-08', dbs: true, work: { id: 'dbs-batalha-deuses', titulo: 'Batalha dos Deuses Super Saiyajin' } });
+  const st2 = Dbs.status(s);
+  assert.equal(st2.completedSets, 2);
+  assert.equal(st2.unlockedCount, 6);
+  assert.ok(R.available(s, 'frame', 'dbs_ssjgod'));
+
+  // Unlock remaining sets via active reading ticks (300s total for all 5 sets = 15 rewards)
+  for (let n = 0; n < 300; n += 15) {
+    s = R.advance(s, { id: 'conto:dbs-torneio-poder', seconds: 15, progress: 1, day: '2026-11-08', dbs: true });
+  }
+  const stFull = Dbs.status(s);
+  assert.equal(stFull.completedSets, 5);
+  assert.equal(stFull.unlockedCount, 15);
+  assert.equal(stFull.percent, 100);
+
+
+  for (const set of Dbs.SETS) {
+    assert.ok(R.available(s, 'frame', set.id));
+    assert.ok(R.available(s, 'avatar', set.id));
+    assert.ok(R.available(s, 'theme', set.id));
+    assert.match(RewardArt.frame(set.id), /dbs-frames\.png/);
+    assert.match(RewardArt.avatar(set.id), /dbs-avatars\.png/);
+    s = R.equip(s, 'theme', set.id);
+    assert.equal(R.appearance(s).theme, set.id);
+  }
+
+  s = R.equipGlobalAvatar(s, { pairId: 'dbs_zeno_mui' });
+  assert.equal(R.appearance(s).frame, 'dbs_zeno_mui');
+  assert.equal(R.appearance(s).avatar, 'dbs_zeno_mui');
+  const unlocked = R.unlockedAchievements(s);
+  assert.ok(unlocked.frames.some(f => f.id === 'dbs_zeno_mui' && f.origin === 'Evento Dragon Ball Super'));
+  assert.ok(unlocked.avatars.some(a => a.id === 'dbs_zeno_mui' && a.origin === 'Evento Dragon Ball Super'));
+});
+
+

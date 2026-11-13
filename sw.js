@@ -6,6 +6,7 @@ const ASSETS_ESTATICOS = [
   './',
   './index.html',
   './js/mascots.js?v=mascots-20261113-52',
+  './js/dbs-rewards.js?v=mascots-20261113-52',
   './js/speech-bubbles.js?v=mascots-20261113-52',
   './css/style.css?v=mascots-20261113-52',
   './js/data.js?v=mascots-20261113-52',
