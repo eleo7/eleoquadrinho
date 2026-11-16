@@ -689,6 +689,30 @@ const CONTOS = [
 
         Ao final do Torneio do Poder, quando o Androide 17 pediu a Super Shenlong a restauração de todos os universos apagados, provou-se que a empatia dos mortais era a verdadeira resposta ao teste supremo de Zeno-Sama.`)]
     ]
+  },
+
+  /* ===== BATMAN · SOMBRAS DE GOTHAM ===== */
+  {
+    id: 'batman-cavaleiro-gotham', colecao: 'originais', batman: true, titulo: 'Batman: O Chamado do Bat-Sinal em Gotham', sub: 'Crônica de Bruce Wayne, Batcaverna, Tumbler e a Vigília das Trevas', tempo: 6,
+    capitulos: [
+      ['O Juramento sob a Chuva', P(`
+        Sob o céu carregado de nuvens de chumbo e sirenes distantes em Gotham City, o feixe dourado do Bat-Sinal atravessa a neblina noturna a partir do terraço do Departamento de Polícia. Para o tenente James Gordon, aquela luz é um apelo; para o submundo de Gotham, é um aviso.
+        
+        Nas profundezas da Batcaverna, sob a Mansão Wayne, os monitores do Batcomputador piscam em azul e âmbar enquanto Bruce Wayne ajusta as placas táteis de grafite do seu traje e trava o cinto de utilidades dourado. Sem poderes divinos, cada passo do Cavaleiro das Trevas nasce de disciplina, intelecto e preparação extrema.`)],
+      ['O Rugido do Tumbler', P(`
+        Quando a Corte das Corujas e as gangues armadas tomam os viadutos industriais, os portões ocultos sob a cachoeira se abrem para a saída do Tumbler blindado. Entre gárgulas de pedra, pontes suspensas e o brilho vermelho das turbinas no asfalto molhado, o Batman intercepta o comboio antes mesmo que o alarme chegue ao centro da cidade.
+        
+        Ao lado de Asa Noturna, Batgirl e Robin patrulhando os telhados góticos, o símbolo do morcego prova que Gotham nunca cai sem lutar — porque as sombras também têm um guardião.`)]
+    ]
+  },
+  {
+    id: 'batman-arkham-sombras', colecao: 'originais', batman: true, titulo: 'Batman: Os Portões de Arkham', sub: 'Mistério no Asilo Arkham contra o Coringa, Espantalho, Hera Venenosa e Bane', tempo: 6,
+    capitulos: [
+      ['Névoa Esmeralda no Portão de Ferro', P(`
+        Para além da ponte que liga a ilha isolada ao continente, os portões retorcidos do Asilo Arkham rangem sob uma névoa esmeralda impregnada pelas toxinas do Espantalho e pelas vinhas vivas de Hera Venenosa. No alto das colunas de granito, gárgulas observam em silêncio enquanto o Coringa transmite sua charada por todos os alto-falantes da ala de segurança máxima.`)],
+      ['Detetive nas Trevas', P(`
+        Movendo-se entre as grades enferrujadas e os corredores inundados pela chuva, Batman analisa cada pista com os sensores da máscara e antecipa a investida brutal de Bane. Ao restaurar os geradores do asilo e fechar os portões antes do amanhecer, o maior detetive do mundo relembra por que vestiu o manto: não por vingança, mas para garantir que a esperança jamais seja apagada em Gotham.`)]
+    ]
   }
 ];
 

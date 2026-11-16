@@ -7,6 +7,7 @@
   const Thunder=typeof module!=='undefined'&&module.exports?require('./thunder-rewards'):root.EQThunderRewards;
   const Noxus=typeof module!=='undefined'&&module.exports?require('./noxus-rewards'):root.EQNoxusRewards;
   const Dbs=typeof module!=='undefined'&&module.exports?require('./dbs-rewards'):root.EQDbsRewards;
+  const Batman=typeof module!=='undefined'&&module.exports?require('./batman-rewards'):root.EQBatmanRewards;
   const GOALS = [5, 10, 20, 30, 60];
   const MISSIONS = [
     { id: 'first_minutes', title: 'Primeiros capítulos', metric: 'seconds', target: 300, reward: 'avatar:owl', label: 'Avatar Coruja', icon: '🦉' },
@@ -56,6 +57,7 @@
   for(const kind of ['frame','avatar','theme'])OPTIONS[kind].push(...Thunder.OPTIONS[kind]);
   if(Noxus){for(const kind of ['frame','avatar'])OPTIONS[kind].push(...Noxus.OPTIONS[kind]);}
   if(Dbs){for(const kind of ['frame','avatar','theme'])OPTIONS[kind].push(...Dbs.OPTIONS[kind]);}
+  if(Batman){for(const kind of ['frame','avatar','theme'])OPTIONS[kind].push(...Batman.OPTIONS[kind]);}
   function event(state, day = dayKey()) {
     const week=weekStart(day), offset=Math.round((Date.parse(week+'T12:00:00Z')-Date.parse('2026-10-19T12:00:00Z'))/604800000);
     const set=Seasons.SETS[((offset%Seasons.SETS.length)+Seasons.SETS.length)%Seasons.SETS.length];
@@ -81,7 +83,7 @@
   const number = (n, max = 1e9) => Number.isFinite(n) ? Math.min(max, Math.max(0, Math.floor(n))) : 0;
   function normalize(input) {
     const x = input && typeof input === 'object' ? input : {};
-    const state = { version: 1, totalSeconds: number(x.totalSeconds), goal: GOALS.includes(x.goal) ? x.goal : 10, goalDays: number(x.goalDays), books: {}, days: {}, weeklyWins: {}, eventRewards: {}, eventProgress: null, epicProgress: Epic.normalize(x.epicProgress), appearance: {}, thunderDraws:Thunder.normalize(x.thunderDraws), thunderProgress: Thunder.normalizeProgress ? Thunder.normalizeProgress(x.thunderProgress) : { v1Seconds: 0, v1WorksRead: [], v1UnlockedRewards: [], v1CatalogBonusGranted: false }, noxusProgress: Noxus ? Noxus.normalize(x.noxusProgress) : { seconds: 0, worksRead: [], unlockedSets: [] }, dbsProgress: Dbs ? Dbs.normalize(x.dbsProgress) : { seconds: 0, worksRead: [], unlockedSets: [], catalogBonusGranted: false }, scheduledProgress: Scheduled.normalize(x.scheduledProgress) };
+    const state = { version: 1, totalSeconds: number(x.totalSeconds), goal: GOALS.includes(x.goal) ? x.goal : 10, goalDays: number(x.goalDays), books: {}, days: {}, weeklyWins: {}, eventRewards: {}, eventProgress: null, epicProgress: Epic.normalize(x.epicProgress), appearance: {}, thunderDraws:Thunder.normalize(x.thunderDraws), thunderProgress: Thunder.normalizeProgress ? Thunder.normalizeProgress(x.thunderProgress) : { v1Seconds: 0, v1WorksRead: [], v1UnlockedRewards: [], v1CatalogBonusGranted: false }, noxusProgress: Noxus ? Noxus.normalize(x.noxusProgress) : { seconds: 0, worksRead: [], unlockedSets: [] }, dbsProgress: Dbs ? Dbs.normalize(x.dbsProgress) : { seconds: 0, worksRead: [], unlockedSets: [], catalogBonusGranted: false }, batmanProgress: Batman ? Batman.normalize(x.batmanProgress) : { seconds: 0, worksRead: [], unlockedSets: [], catalogBonusGranted: false }, scheduledProgress: Scheduled.normalize(x.scheduledProgress) };
     for (const [key, value] of Object.entries(x.books || {}).slice(0, 5000)) {
       if (!key.startsWith('work:') || key.length > 240 || !value || typeof value !== 'object') continue;
       state.books[key] = { seconds: number(value.seconds), progress: Math.min(1, Math.max(0, Number(value.progress) || 0)), completed: value.completed === true };
@@ -131,7 +133,7 @@
     const record = state.days[day];
     if (!record.done && record.seconds >= record.goal * 60) { record.done = true; state.goalDays++; }
   }
-  function advance(input, { id, seconds, progress, day, events=[], seed='', noxus=false, dbs=false, hasDbsCatalog=false, thunderV1=false, hasV1Catalog=false, work=null }) {
+  function advance(input, { id, seconds, progress, day, events=[], seed='', noxus=false, dbs=false, hasDbsCatalog=false, batman=false, hasBatmanCatalog=false, thunderV1=false, hasV1Catalog=false, work=null }) {
     const state = normalize(input);
     if (typeof id !== 'string' || !id || id.length > 230 || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day+'T12:00:00Z'))) return state;
     const credit = number(seconds, 20); if (!credit) return state;
@@ -163,6 +165,7 @@
     if(Thunder.advanceV1)Thunder.advanceV1(state,{id,seconds:credit,progress:book.progress,day,thunderV1,hasV1Catalog,work});
     if(Noxus)Noxus.advance(state,{id,seconds:credit,progress:book.progress,day,noxus,work});
     if(Dbs)Dbs.advance(state,{id,seconds:credit,progress:book.progress,day,dbs,hasDbsCatalog,work});
+    if(Batman)Batman.advance(state,{id,seconds:credit,progress:book.progress,day,batman,hasBatmanCatalog,work});
     const earned=event(state,day), rewardId='event_'+earned.set.id;
     if(earned.seconds>=earned.minutesTarget*60)state.eventRewards['frame:'+rewardId]=true;
     if(earned.books>=earned.booksTarget)state.eventRewards['avatar:'+rewardId]=true;
@@ -183,6 +186,7 @@
   }
   function originLabel(kind, option) {
     if (!option || option.id === 'default') return 'Padrão da conta';
+    if (option.batman) return 'Evento Batman · Sombras de Gotham';
     if (option.dbs) return 'Evento Dragon Ball Super';
     if (option.noxus) return 'Evento de Noxus';
     if (option.thunder) return 'Evento ThunderCats';

@@ -223,4 +223,62 @@ test('Dragon Ball Super event unlocks 5 frames, 5 icons, and 5 themes and integr
   assert.ok(unlocked.avatars.some(a => a.id === 'dbs_zeno_mui' && a.origin === 'Evento Dragon Ball Super'));
 });
 
+test('Batman event unlocks 5 frames, 5 icons, 5 themes, and tracks Batman mascot milestones', () => {
+  const Batman = require('../js/batman-rewards');
+  const RewardArt = require('../js/reward-art');
+  assert.equal(Batman.SETS.length, 5);
+  assert.equal(Batman.OPTIONS.frame.length, 5);
+  assert.equal(Batman.OPTIONS.avatar.length, 5);
+  assert.equal(Batman.OPTIONS.theme.length, 5);
+  assert.ok(Batman.isBatmanWork({ id: 'conto:batman-cavaleiro-gotham', titulo: 'Batman: O Sinal nos Céus de Gotham' }));
+  assert.ok(Batman.isBatmanWork('Asilo Arkham: Sombras'));
+  assert.ok(!Batman.isBatmanWork('Thor e os Trovões de Asgard'));
 
+  let s = R.normalize();
+  assert.equal(Batman.status(s).unlockedCount, 0);
+  assert.deepEqual(Batman.status(s).unlockedMascots, []);
+
+  // Reading a Batman work unlocks first set + bat_sentinela mascot milestone
+  s = R.advance(s, { id: 'conto:batman-cavaleiro-gotham', seconds: 15, progress: 0.6, day: '2026-11-16', batman: true, work: { id: 'batman-cavaleiro-gotham', titulo: 'Batman: O Sinal nos Céus de Gotham' } });
+  const st1 = Batman.status(s);
+  assert.equal(st1.completedSets, 1);
+  assert.equal(st1.unlockedCount, 3);
+  assert.deepEqual(st1.unlockedMascots, ['bat_sentinela']);
+  assert.ok(R.available(s, 'frame', 'batman_gothico'));
+  assert.ok(R.available(s, 'avatar', 'batman_gothico'));
+  assert.ok(R.available(s, 'theme', 'batman_gothico'));
+
+  // Completing second Batman work unlocks batman_arkham + bat_felino milestone
+  s = R.advance(s, { id: 'conto:batman-arkham-sombras', seconds: 15, progress: 0.8, day: '2026-11-16', batman: true, work: { id: 'batman-arkham-sombras', titulo: 'Asilo Arkham: As Sombras do Morcego' } });
+  const st2 = Batman.status(s);
+  assert.equal(st2.completedSets, 2);
+  assert.deepEqual(st2.unlockedMascots, ['bat_sentinela', 'bat_felino']);
+  assert.ok(R.available(s, 'frame', 'batman_arkham'));
+
+  // Active reading time unlocks remaining sets + all 4 Batman mascots
+  for (let n = 0; n < 300; n += 15) {
+    s = R.advance(s, { id: 'conto:batman-cavaleiro-gotham', seconds: 15, progress: 1, day: '2026-11-16', batman: true });
+  }
+  const stFull = Batman.status(s);
+  assert.equal(stFull.completedSets, 5);
+  assert.equal(stFull.unlockedCount, 15);
+  assert.equal(stFull.percent, 100);
+  assert.deepEqual(stFull.unlockedMascots, ['bat_sentinela', 'bat_felino', 'bat_blindado', 'bat_estelar']);
+
+  for (const set of Batman.SETS) {
+    assert.ok(R.available(s, 'frame', set.id));
+    assert.ok(R.available(s, 'avatar', set.id));
+    assert.ok(R.available(s, 'theme', set.id));
+    assert.match(RewardArt.frame(set.id), /batman-frames\.png/);
+    assert.match(RewardArt.avatar(set.id), /batman-avatars\.png/);
+    s = R.equip(s, 'theme', set.id);
+    assert.equal(R.appearance(s).theme, set.id);
+  }
+
+  s = R.equipGlobalAvatar(s, { pairId: 'batman_sombra' });
+  assert.equal(R.appearance(s).frame, 'batman_sombra');
+  assert.equal(R.appearance(s).avatar, 'batman_sombra');
+  const unlocked = R.unlockedAchievements(s);
+  assert.ok(unlocked.frames.some(f => f.id === 'batman_sombra' && f.origin === 'Evento Batman · Sombras de Gotham'));
+  assert.ok(unlocked.avatars.some(a => a.id === 'batman_sombra' && a.origin === 'Evento Batman · Sombras de Gotham'));
+});

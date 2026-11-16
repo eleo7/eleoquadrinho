@@ -2015,6 +2015,73 @@
     }
     if (changed) guardarRecompensas(state);
   }
+  function ehObraDeBatman(it) {
+    if (!it || !window.EQBatmanRewards) return false;
+    if (EQBatmanRewards.isBatmanWork(it)) return true;
+    const h = it.heroiId ? REG.get(it.heroiId) : null;
+    if (h && EQBatmanRewards.isBatmanWork(h)) return true;
+    const s = it.serieId ? REG.get(it.serieId) : null;
+    if (s && EQBatmanRewards.isBatmanWork(s)) return true;
+    return false;
+  }
+  function itensBatmanCatalogo() {
+    if (!window.EQBatmanRewards) return [];
+    const seen = new Set();
+    const list = [];
+    const candidates = [...REG.values(), ...(Array.isArray(externas) ? externas : []), ...(Array.isArray(drive) ? drive : []), ...(Array.isArray(series) ? series : [])];
+    for (const it of candidates) {
+      if (!it || !it.id || seen.has(it.id)) continue;
+      if (!conteudoPermitido(it)) continue;
+      if (!ehObraDeBatman(it)) continue;
+      seen.add(it.id);
+      const s = it.serieId ? REG.get(it.serieId) : null;
+      const h = it.heroiId ? REG.get(it.heroiId) : null;
+      list.push({
+        ...it,
+        serieNome: it.serieNome || s?.titulo || '',
+        heroiNome: it.heroiNome || h?.titulo || ''
+      });
+    }
+    return list;
+  }
+  function sincronizarBatman() {
+    if (!window.EQBatmanRewards || !Auth.usuario || Auth.saindo || !readerSync?.loaded || readerSync.conflict) return;
+    const items = itensBatmanCatalogo();
+    const userImported = items.filter(it => it.tipo === 'local' || Boolean(it.storagePath) || it.tipo === 'drive');
+    const state = estadoRecompensas();
+    let changed = false;
+    if (userImported.length > 0 && !state.batmanProgress?.catalogBonusGranted) {
+      const unlocked = EQBatmanRewards.advance(state, {
+        id: userImported[0]?.readingKey || userImported[0]?.id || 'batman_catalog',
+        seconds: 0,
+        progress: 0,
+        day: EQReadingRewards.dayKey(),
+        batman: true,
+        hasBatmanCatalog: true,
+        work: userImported[0]
+      });
+      if (unlocked.length || state.batmanProgress?.catalogBonusGranted) changed = true;
+    }
+    for (const h of historico) {
+      if (!h || h.prog < 0.5) continue;
+      const item = REG.get(h.id) || h.item;
+      if (!ehObraDeBatman(item)) continue;
+      const workKey = item?.readingKey || h.id;
+      if (!state.batmanProgress?.worksRead?.includes(workKey)) {
+        const unlocked = EQBatmanRewards.advance(state, {
+          id: workKey,
+          seconds: 0,
+          progress: h.prog,
+          day: EQReadingRewards.dayKey(),
+          batman: true,
+          hasBatmanCatalog: userImported.length > 0,
+          work: item
+        });
+        if (unlocked.length || state.batmanProgress?.worksRead?.includes(workKey)) changed = true;
+      }
+    }
+    if (changed) guardarRecompensas(state);
+  }
   function ehObraDeThunderCats(it) {
     if (!it || !window.EQThunderRewards) return false;
     if (EQThunderRewards.isThunderV1Work(it)) return true;
@@ -2102,6 +2169,14 @@
         const workKey = it.readingKey || it.id;
         if (!state.dbsProgress?.worksRead?.includes(workKey)) {
           const unlocked = EQDbsRewards.unlockNextForWork(state, { ...it, id: workKey });
+          if (unlocked.length) guardarRecompensas(state);
+        }
+      }
+      if (ehObraDeBatman(it)) {
+        const state = estadoRecompensas();
+        const workKey = it.readingKey || it.id;
+        if (!state.batmanProgress?.worksRead?.includes(workKey)) {
+          const unlocked = EQBatmanRewards.unlockNextForWork(state, { ...it, id: workKey });
           if (unlocked.length) guardarRecompensas(state);
         }
       }
@@ -3025,6 +3100,7 @@
       b.style.width = Math.round(h.prog * 100) + '%';
     });
     if (abaAtual === 'historico') renderHistorico();
+    if (abaAtual === 'perfil') renderPerfil();
   }
   const leitorAberto = () => $('.leitor.aberto');
 
@@ -3476,13 +3552,16 @@
     const news=EQReleaseNews.collect(prefs.releaseNews,works,rewards);
     mostrarLancamentoConquistas(rewards,news.rewards);
     if(news.works.length||news.rewards.length){prefs.releaseNews=news.snapshot;salvarPrefs();}
-    news.rewards=[]; // Reward releases have their own spotlight; this banner lists HQs only.
-    if(!news.works.length)return;
+    const batmanNewsRewards=news.rewards.filter(o=>o.batman);
+    const hasBatmanEvent=batmanNewsRewards.length>0;
+    news.rewards=[]; // Reward releases have their own spotlight; this banner lists HQs + major event callout.
+    if(!news.works.length&&!hasBatmanEvent)return;
+    const batPet=window.EQMascots?.PETS.find(p=>p.id==='bat_sentinela');
     const box=document.createElement('aside');box.id='releaseNews';box.className='release-news painel';box.setAttribute('aria-label','Novidades da sua conta');
-    box.innerHTML=`<div class="release-news-head"><div><small>NOVIDADES</small><h3>${news.first?'Veja o que está disponível na sua conta':'Chegaram novidades para você!'}</h3></div><button class="btn btn-sec" data-news-close aria-label="Fechar novidades">✕</button></div><p>${news.works.length?`${news.works.length} HQ(s) ${news.first?'no catálogo':'adicionada(s) desde sua última visita'}. `:''}${news.rewards.length?`${news.rewards.length} nova(s) recompensa(s) para descobrir.`:''}</p><details><summary>Ver novidades</summary>${news.rewards.length?`<div class="news-rewards">${news.rewards.slice(0,5).map(o=>`<div><span class="news-art">${o.kind==='frame'?EQRewardArt.frame(o.rewardId):EQRewardArt.avatar(o.kind==='avatar'?o.rewardId:'sentinel')}</span><strong>${esc(o.label)}</strong></div>`).join('')}</div><button class="btn btn-pri" data-news-rewards>Ver desafios e recompensas</button>`:''}${news.works.length?`<h4>HQs disponíveis</h4><ul>${news.works.slice(0,8).map(it=>`<li>${esc(it.titulo||'HQ sem título')}</li>`).join('')}</ul>${news.works.length>8?'<p>Veja as demais HQs na biblioteca.</p>':''}<button class="btn btn-sec" data-news-library>Abrir biblioteca</button>`:''}</details>`;
+    box.innerHTML=`<div class="release-news-head"><div><small>${hasBatmanEvent?'NOVO EVENTO · SOMBRAS DE GOTHAM':'NOVIDADES'}</small><h3>${hasBatmanEvent?'Evento Batman: Molduras, Ícones e Mascotes chegaram!':news.first?'Veja o que está disponível na sua conta':'Chegaram novidades para você!'}</h3></div><button class="btn btn-sec" data-news-close aria-label="Fechar novidades">✕</button></div><p>${hasBatmanEvent?'Leia histórias ou HQs do Batman para desbloquear 5 molduras, 5 ícones, 5 temas e os novos mascotes robôs de Gotham. ':''}${news.works.length?`${news.works.length} HQ(s) ${news.first?'no catálogo':'adicionada(s) desde sua última visita'}. `:''}</p><details ${hasBatmanEvent?'open':''}><summary>Ver novidades</summary>${hasBatmanEvent?`<div class="news-batman-banner">${batPet&&window.EQMascots?.art?EQMascots.art(batPet):''}<div><strong>🦇 Novo Evento Batman & Mascotes de Gotham</strong><p>Conquiste o conjunto Bat-Sinal, Batcaverna, Tumbler, Arkham e Sombra do Morcego e desbloqueie até 4 mascotes exclusivos.</p></div><button class="btn btn-pri" data-news-rewards>Ir para Evento Batman</button></div>`:''}${news.works.length?`<h4>HQs disponíveis</h4><ul>${news.works.slice(0,8).map(it=>`<li>${esc(it.titulo||'HQ sem título')}</li>`).join('')}</ul>${news.works.length>8?'<p>Veja as demais HQs na biblioteca.</p>':''}<button class="btn btn-sec" data-news-library>Abrir biblioteca</button>`:''}</details>`;
     $('#app').prepend(box);
     box.querySelector('[data-news-close]').onclick=()=>box.remove();
-    box.querySelector('[data-news-rewards]')?.addEventListener('click',()=>{box.remove();ir('perfil');});
+    box.querySelector('[data-news-rewards]')?.addEventListener('click',()=>{box.remove();ir('perfil');setTimeout(()=>$('.batman-event')?.scrollIntoView({block:'start'}),120);});
     box.querySelector('[data-news-library]')?.addEventListener('click',()=>{box.remove();ir('biblioteca');});
   }
   function mostrarLancamentoConquistas(available,added) {
@@ -3491,8 +3570,12 @@
     if(JSON.stringify(state)!==JSON.stringify(prefs.achievementNews)){prefs.achievementNews=state;salvarPrefs();}
     if(!state.pending.length)return;
     const items=available.filter(o=>state.pending.includes(o.id)),dialog=document.createElement('dialog'),account=Auth.usuario.id,previousFocus=document.activeElement;
+    const hasBatmanPending=items.some(o=>o.batman);
+    const frameItems=items.filter(o=>o.kind==='frame').sort((a,b)=>(b.batman?1:0)-(a.batman?1:0)||String(b.release||'').localeCompare(String(a.release||'')));
+    const previewItems=(frameItems.length>=4?frameItems:items).slice(0,4);
+    const batPet=hasBatmanPending&&window.EQMascots?.PETS.find(p=>p.id==='bat_sentinela');
     dialog.id='achievementLaunch';dialog.className='achievement-launch';dialog.setAttribute('aria-labelledby','achievementLaunchTitle');dialog.setAttribute('aria-describedby','achievementLaunchDescription');
-    dialog.innerHTML=`<button class="launch-close" aria-label="Fechar lançamento" data-launch-close>✕</button><div class="launch-trophy" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M35 18h50v29c0 34-50 34-50 0Z M35 25H19v12q0 17 20 17m46-29h16v12q0 17-20 17M60 73v15m-15 13q0-13 15-13t15 13M40 105h40" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="launch-tag">NOVAS RECOMPENSAS</span><h2 id="achievementLaunchTitle">CHEGARAM AS <strong>CONQUISTAS!</strong></h2><p id="achievementLaunchDescription">Sua próxima leitura vale uma nova conquista. Descubra ${items.length} recompensa(s) e os desafios para desbloqueá-las no seu perfil.</p><div class="launch-previews">${items.slice(0,4).map(o=>`<div><span>${previaRecompensa(o.kind,{...o,id:o.rewardId})}</span><small>${esc(o.label)}</small></div>`).join('')}</div><label class="launch-optout"><input type="checkbox" data-launch-hide> Não mostrar novamente este lançamento</label><button class="launch-primary" data-launch-profile>Ver meu perfil</button><button class="launch-later" data-launch-later>Depois</button>`;
+    dialog.innerHTML=`<button class="launch-close" aria-label="Fechar lançamento" data-launch-close>✕</button><div class="launch-trophy" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M35 18h50v29c0 34-50 34-50 0Z M35 25H19v12q0 17 20 17m46-29h16v12q0 17-20 17M60 73v15m-15 13q0-13 15-13t15 13M40 105h40" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="launch-tag">${hasBatmanPending?'NOVO EVENTO BATMAN · MOLDURAS, ÍCONES & MASCOTE':'NOVAS RECOMPENSAS'}</span><h2 id="achievementLaunchTitle">${hasBatmanPending?'SOMBRAS DE <strong>GOTHAM!</strong>':'CHEGARAM AS <strong>CONQUISTAS!</strong>'}</h2><p id="achievementLaunchDescription">${hasBatmanPending?`Novo evento ativo! Leia HQs ou crônicas do Batman para desbloquear molduras, ícones, temas e os novos mascotes de Gotham (${items.length} recompensas disponíveis).`:`Sua próxima leitura vale uma nova conquista. Descubra ${items.length} recompensa(s) e os desafios para desbloqueá-las no seu perfil.`}</p><div class="launch-previews">${previewItems.map(o=>`<div><span>${previaRecompensa(o.kind,{...o,id:o.rewardId})}</span><small>${esc(o.label)}</small></div>`).join('')}</div>${batPet&&window.EQMascots?.art?`<div class="launch-batman-callout"><span class="launch-mascot-art" aria-hidden="true">${EQMascots.art(batPet)}</span><div><strong>🐾 Novos Mascotes do Batman: Bat-Sentinela &amp; Esquadrão!</strong><p>Desbloqueie mascotes exclusivos do Batman ao completar os conjuntos do evento de Gotham.</p></div></div>`:''}<label class="launch-optout"><input type="checkbox" data-launch-hide> Não mostrar novamente este lançamento</label><button class="launch-primary" data-launch-profile>Ver meu perfil</button><button class="launch-later" data-launch-later>Depois</button>`;
     document.body.append(dialog);
     function close(acknowledge=false){
       if(Auth.usuario?.id===account&&(acknowledge||dialog.querySelector('[data-launch-hide]').checked)){prefs.achievementNews=EQReleaseNews.dismissSpotlight(state);salvarPrefs();}
@@ -3508,7 +3591,7 @@
     if(!Auth.usuario||Auth.saindo){EQMascots.dispose();return;}
     const state=estadoRecompensas(),day=EQReadingRewards.dayKey();
     const event=(catalogSync?.data.events||[]).find(e=>e.start<=day&&day<=e.end);
-    EQMascots.render({user:Auth.usuario.id,xp:EQReadingRewards.xp(state),selected:prefs.mascot||'byte',visible:prefs.mascotVisible!==false,
+    EQMascots.render({user:Auth.usuario.id,xp:EQReadingRewards.xp(state),rewardsState:state,selected:prefs.mascot||'byte',visible:prefs.mascotVisible!==false,
       items:[...REG.values()].filter(it=>conteudoPermitido(it)),history:historico,event:event?.title,
       save:(id,visible)=>{prefs.mascot=id;prefs.mascotVisible=visible;salvarPrefs();atualizarMascote();},
       read:id=>abrirDetalhe(id),events:()=>{ir('perfil');setTimeout(()=>$('#tituloMissoes')?.scrollIntoView({block:'start'}),100);}});
@@ -3531,9 +3614,12 @@
     prefs.readingRewards = next;
     salvarPrefs(); aplicarRecompensas();
     const unlocked = EQReadingRewards.missions(next).filter(m => m.unlocked && !before.includes(m.id));
-    const pets=EQMascots.unlocked(EQReadingRewards.xp(next)).filter(p=>!EQMascots.unlocked(EQReadingRewards.xp(beforeState)).some(old=>old.id===p.id)).map(p=>'Mascote '+p.name);
+    const pets=EQMascots.unlocked(EQReadingRewards.xp(next),next).filter(p=>!EQMascots.unlocked(EQReadingRewards.xp(beforeState),beforeState).some(old=>old.id===p.id)).map(p=>'Mascote '+p.name);
     const labels = [...new Set([...unlocked.map(m => m.label), ...newlyEarned,...pets])];
-    if (labels.length) toast('🎉 Recompensa desbloqueada: ' + labels.join(', ') + '. Veja seu perfil!');
+    if (labels.length) {
+      toast('🎉 Recompensa desbloqueada: ' + labels.join(', ') + '. Veja seu perfil!');
+      if (abaAtual === 'perfil' && !$('#leitorTexto')?.classList.contains('aberto') && !$('#leitorHQ')?.classList.contains('aberto')) renderPerfil();
+    }
     else if (Object.keys(next.weeklyWins).length > Object.keys(beforeState.weeklyWins).length) toast('🏆 Caçada da semana concluída! +300 XP.');
   }
   ['pointerdown', 'pointermove', 'keydown', 'scroll'].forEach(event => document.addEventListener(event, () => { rewardSession.activity = performance.now(); }, { passive: true, capture: true }));
@@ -3550,16 +3636,17 @@
     const state = estadoRecompensas();
     const thunderCatalog = itensThunderCatsCatalogo();
     const dbsCatalog = itensDbsCatalogo().filter(it => it.tipo !== 'conto' || !['conto:dbs-torneio-poder', 'conto:dbs-esferas-deuses'].includes(it.id));
-    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[],seed:Auth.usuario?.id||'', noxus: ehObraDeNoxus(item), dbs: ehObraDeDbs(item), hasDbsCatalog: dbsCatalog.length > 0, thunderV1: ehObraDeThunderCats(item), hasV1Catalog: thunderCatalog.length > 0, work: item });
+    const batmanCatalog = itensBatmanCatalogo().filter(it => it.tipo === 'local' || Boolean(it.storagePath) || it.tipo === 'drive');
+    const next = EQReadingRewards.advance(state, { id: item.readingKey || item.id, seconds, progress: posicaoSalva(item.id)?.prog || 0, day: EQReadingRewards.dayKey(), events:catalogSync?.data.events||[],seed:Auth.usuario?.id||'', noxus: ehObraDeNoxus(item), dbs: ehObraDeDbs(item), hasDbsCatalog: dbsCatalog.length > 0, batman: ehObraDeBatman(item), hasBatmanCatalog: batmanCatalog.length > 0, thunderV1: ehObraDeThunderCats(item), hasV1Catalog: thunderCatalog.length > 0, work: item });
     guardarRecompensas(next);
   }, 15000);
   let rewardSearchState={query:'',filter:'all'};
   let rewardTab = 'frame';
   const rewardNumber = n => n.toLocaleString('pt-BR');
   function previaRecompensa(kind, option) {
-    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set || option.thunder || option.noxus || option.dbs ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
+    if (kind === 'frame') return `<span class="reward-art-preview frame-preview">${EQRewardArt.avatar(option.set || option.thunder || option.noxus || option.dbs || option.batman ? option.id : 'sentinel')}${option.id === 'default' ? '' : EQRewardArt.frame(option.id)}</span>`;
     if (kind === 'avatar') return `<span class="reward-art-preview avatar-preview">${option.art ? EQRewardArt.avatar(option.id) : `<span class="reward-emoji">${option.icon}</span>`}</span>`;
-    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set || option.thunder || option.noxus || option.dbs ? EQRewardArt.avatar(option.id) : ''}</span>`;
+    if (kind === 'theme') return `<span class="theme-preview" data-preview-theme="${option.id}"><i></i><span><b></b><b></b><b></b></span><em></em>${option.set || option.thunder || option.noxus || option.dbs || option.batman ? EQRewardArt.avatar(option.id) : ''}</span>`;
     return `<span class="layout-preview" data-preview-layout="${option.id}"><i></i><span>${Array.from({length:6},()=>'<b></b>').join('')}</span></span>`;
   }
   function painelEvento(state) {
@@ -3574,18 +3661,23 @@
   function painelMissoes() {
     sincronizarThunderCatsV1();
     sincronizarDbs();
+    sincronizarBatman();
     const state = estadoRecompensas(), stats = EQReadingRewards.metrics(state), day = state.days[EQReadingRewards.dayKey()];
     const goal = day?.goal || state.goal, minutes = (day?.seconds || 0) / 60;
     const selected = EQReadingRewards.appearance(state), xp = EQReadingRewards.xp(state), week = EQReadingRewards.weekly(state);
     const noxusStatus = window.EQNoxusRewards ? EQNoxusRewards.status(state) : null;
     const dbsCatalog = itensDbsCatalogo();
     const dbsStatus = window.EQDbsRewards ? EQDbsRewards.status(state, { catalogItems: dbsCatalog }) : null;
+    const batmanCatalog = itensBatmanCatalogo();
+    const batmanStatus = window.EQBatmanRewards ? EQBatmanRewards.status(state, { catalogItems: batmanCatalog }) : null;
+    const batPreviewPet = window.EQMascots?.PETS.find(p => p.id === 'bat_sentinela');
     const thunderCatalog = itensThunderCatsCatalogo();
     const thunderStatus = window.EQThunderRewards ? EQThunderRewards.status(state, { day: EQReadingRewards.dayKey(), week: week.start, catalogItems: thunderCatalog }) : null;
     const names = {frame:'Molduras',avatar:'Avatares',theme:'Temas',layout:'Layouts'};
     return `<section class="missoes-painel" aria-labelledby="tituloMissoes">
       <div class="rewards-heading"><div><small>SUA JORNADA ENTRE PÁGINAS</small><h3 id="tituloMissoes">Leia. Conquiste. Personalize.</h3><p class="missoes-resumo">${Math.floor(stats.seconds / 60)} min de leitura · ${stats.completed} obras concluídas · ${stats.days} metas cumpridas</p></div><div class="xp-balance"><small>NÍVEL ${1+Math.floor(xp/1000)}</small><strong>${rewardNumber(xp)} <span>XP</span></strong><progress value="${xp%1000}" max="1000" aria-label="Progresso até o próximo nível"></progress><small>${rewardNumber(1000-xp%1000)} XP para o próximo nível</small></div></div>
       ${painelEvento(state)}
+      ${batmanStatus ? `<section class="painel batman-event" aria-label="Evento Batman"><div class="batman-event-head"><div><span class="batman-event-badge">EVENTO BATMAN · SOMBRAS DE GOTHAM</span><h3>Batman · Molduras, Ícones, Temas &amp; Mascotes</h3><p>Leia uma crônica, Lore ou HQ do <strong>Batman &amp; Gotham</strong> (Bat-Sinal, Batcaverna, Tumbler Blindado, Asilo Arkham, Cavaleiro das Trevas, Coringa, Asa Noturna) para desbloquear as <strong>15 recompensas exclusivas</strong> e os <strong>4 mascotes robôs do Batman</strong>.</p></div>${batPreviewPet && window.EQMascots?.art ? `<div class="batman-mascot-spotlight">${EQMascots.art(batPreviewPet)}<div><strong>🐾 ${batmanStatus.unlockedMascots.length}/4 Mascotes do Batman</strong><small>Bat-Sentinela desbloqueia no 1º conjunto · Equipe na seção Mascotes abaixo!</small></div></div>` : ''}</div><div class="batman-progress-card" role="region" aria-label="Progresso do Evento Batman"><div class="batman-progress-header"><div><strong>${batmanStatus.remainingSets===0?'✓ Evento Batman Concluído!':`Progresso do Evento: ${batmanStatus.completedSets} de ${batmanStatus.totalSets} conjuntos (${batmanStatus.unlockedCount}/${batmanStatus.totalRewards} recompensas · ${batmanStatus.unlockedMascots.length}/4 mascotes)`}</strong><span>${batmanStatus.remainingSets===0?'Todas as 5 molduras, 5 ícones, 5 temas e os 4 mascotes do Batman já estão na sua coleção.':`Faltam ${batmanStatus.remainingSets} ${batmanStatus.remainingSets===1?'conjunto':'conjuntos'} (${batmanStatus.remainingRewards} ${batmanStatus.remainingRewards===1?'recompensa':'recompensas'} · ${batmanStatus.remainingSets} ${batmanStatus.remainingSets===1?'obra lida':'obras lidas'} ou ${Math.ceil(batmanStatus.totalSecondsRemaining/60)} min de leitura em Batman)`}</span></div><span class="batman-progress-pct">${batmanStatus.percent}%</span></div><progress class="batman-progress-bar" value="${batmanStatus.unlockedCount}" max="${batmanStatus.totalRewards}" aria-label="Progresso geral para completar o evento Batman"></progress><div class="batman-progress-steps" aria-hidden="true">${batmanStatus.sets.map(s=>`<span class="batman-step ${s.complete?'done':batmanStatus.nextSet?.id===s.id?'active':''}"><i>${s.complete?'✓':`${s.earnedCount}/3`}</i><small>${esc(s.hero)}</small></span>`).join('')}</div>${batmanStatus.nextSet?`<div class="batman-next-unlock"><div class="batman-next-info"><span>Próxima recompensa: <strong>${esc(batmanStatus.nextSet.label)}</strong> (Moldura + Ícone + Tema${batmanStatus.nextSet.mascotName?` + Mascote ${esc(batmanStatus.nextSet.mascotName)}`:''})</span><small>Falta concluir 1 obra do Batman ou ${batmanStatus.nextSecondsRemaining}s de leitura ativa</small></div><progress class="batman-next-bar" value="${batmanStatus.currentStepSeconds}" max="${batmanStatus.secondsPerUnlock}" aria-label="Progresso para a próxima recompensa do Batman"></progress></div>`:''}</div><div class="news-rewards batman-rewards-grid">${batmanStatus.sets.map(s=>`<div class="batman-reward-item ${s.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${s.complete?'✓ Conquistado':esc(s.roleLabel)}${s.mascotName?` · 🐾 ${esc(s.mascotName)}`:''}</small></div>`).join('')}</div><p class="batman-progress-line">Conjuntos conquistados: <strong>${batmanStatus.completedSets} / ${batmanStatus.totalSets}</strong> (${batmanStatus.unlockedCount}/${batmanStatus.totalRewards} itens) · Mascotes do Batman: <strong>${batmanStatus.unlockedMascots.length}/4</strong> · Obras de Gotham lidas: ${batmanStatus.worksRead.length}${batmanStatus.catalog.enabled?` · Acervo Batman ativo: ${batmanStatus.catalog.totalWorks} obra(s)`:''}</p><small>Cada crônica, Lore ou HQ do Batman lida (ou 1 minuto de leitura ativa no universo de Gotham) libera um conjunto completo de Moldura + Ícone + Tema e desbloqueia os mascotes temáticos do Batman.</small><div class="batman-actions"><button class="btn btn-pri" data-batman-read="conto:batman-cavaleiro-gotham">🦇 Ler Crônica: Bat-Sinal &amp; Tumbler</button><button class="btn btn-sec" data-batman-read="conto:batman-arkham-sombras">🕸️ Ler Lore: Portões de Arkham</button>${batmanStatus.catalog.works.find(w=>!['conto:batman-cavaleiro-gotham','conto:batman-arkham-sombras'].includes(w.id)&&w.tipo!=='wiki')?`<button class="btn btn-sec" data-batman-read="${esc(batmanStatus.catalog.works.find(w=>!['conto:batman-cavaleiro-gotham','conto:batman-arkham-sombras'].includes(w.id)&&w.tipo!=='wiki').id)}">🗯️ Abrir HQ do Batman</button>`:''}</div></section>` : ''}
       ${dbsStatus ? `<section class="painel dbs-event" aria-label="Evento Dragon Ball Super"><div class="dbs-event-head"><span class="dbs-event-badge">EVENTO DRAGON BALL SUPER · TORNEIO DO PODER & ESFERAS DO DRAGÃO</span><h3>Dragon Ball Super · Molduras, Ícones & Temas Divinos</h3><p>Leia uma crônica, história, Lore, mangá ou HQ de <strong>Dragon Ball / Dragon Ball Super</strong> (Shenlong, Goku SSJ God, SSJ Blue, Instinto Superior, Vegeta, Bills, Whis, Zeno e Torneio do Poder) para desbloquear as <strong>15 recompensas exclusivas</strong> (5 molduras, 5 ícones e 5 temas).</p></div><div class="dbs-progress-card" role="region" aria-label="Progresso do Evento Dragon Ball Super"><div class="dbs-progress-header"><div><strong>${dbsStatus.remainingSets===0?'✓ Evento Dragon Ball Super Concluído!':`Progresso do Evento: ${dbsStatus.completedSets} de ${dbsStatus.totalSets} conjuntos (${dbsStatus.unlockedCount}/${dbsStatus.totalRewards} recompensas)`}</strong><span>${dbsStatus.remainingSets===0?'Todas as 5 molduras, 5 ícones e 5 temas de Dragon Ball Super já estão na sua coleção.':`Faltam ${dbsStatus.remainingSets} ${dbsStatus.remainingSets===1?'conjunto':'conjuntos'} (${dbsStatus.remainingRewards} ${dbsStatus.remainingRewards===1?'recompensa':'recompensas'} · ${dbsStatus.remainingSets} ${dbsStatus.remainingSets===1?'obra lida':'obras lidas'} ou ${Math.ceil(dbsStatus.totalSecondsRemaining/60)} min de leitura em Dragon Ball) para completar tudo`}</span></div><span class="dbs-progress-pct">${dbsStatus.percent}%</span></div><progress class="dbs-progress-bar" value="${dbsStatus.unlockedCount}" max="${dbsStatus.totalRewards}" aria-label="Progresso geral para completar o evento de Dragon Ball Super"></progress><div class="dbs-progress-steps" aria-hidden="true">${dbsStatus.sets.map((s,idx)=>`<span class="dbs-step ${s.complete?'done':dbsStatus.nextSet?.id===s.id?'active':''}"><i>${s.complete?'✓':`${s.earnedCount}/3`}</i><small>${esc(s.hero)}</small></span>`).join('')}</div>${dbsStatus.nextSet?`<div class="dbs-next-unlock"><div class="dbs-next-info"><span>Próxima recompensa: <strong>${esc(dbsStatus.nextSet.label)}</strong> (Moldura + Ícone + Tema)</span><small>Falta concluir 1 obra de Dragon Ball ou ${dbsStatus.nextSecondsRemaining}s de leitura ativa</small></div><progress class="dbs-next-bar" value="${dbsStatus.currentStepSeconds}" max="${dbsStatus.secondsPerUnlock}" aria-label="Progresso para a próxima recompensa de Dragon Ball Super"></progress></div>`:''}</div><div class="news-rewards dbs-rewards-grid">${dbsStatus.sets.map(s=>`<div class="dbs-reward-item ${s.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${s.complete?'✓ 3/3 Conquistados':esc(s.roleLabel)}</small></div>`).join('')}</div><p class="dbs-progress-line">Conjuntos conquistados: <strong>${dbsStatus.completedSets} / ${dbsStatus.totalSets}</strong> (${dbsStatus.unlockedCount}/${dbsStatus.totalRewards} itens) · Tempo em Dragon Ball: ${Math.floor(dbsStatus.seconds/60)} min · Obras lidas: ${dbsStatus.worksRead.length}${dbsStatus.catalog.enabled?` · Acervo Dragon Ball ativo: ${dbsStatus.catalog.totalWorks} obra(s)`:''}</p><small>Cada conto, crônica, Lore, mangá ou HQ de Dragon Ball / Dragon Ball Super lido (ou 1 minuto de leitura ativa no universo Dragon Ball) libera um conjunto completo de Moldura + Ícone + Tema.</small><div class="dbs-actions"><button class="btn btn-pri" data-dbs-read="conto:dbs-torneio-poder">🐉 Ler Crônica: Instinto Superior & Torneio do Poder</button><button class="btn btn-sec" data-dbs-read="conto:dbs-esferas-deuses">🟠 Ler Lore: Shenlong & Super Esferas</button>${dbsStatus.catalog.works.find(w=>!['conto:dbs-torneio-poder','conto:dbs-esferas-deuses'].includes(w.id))?`<button class="btn btn-sec" data-dbs-read="${esc(dbsStatus.catalog.works.find(w=>!['conto:dbs-torneio-poder','conto:dbs-esferas-deuses'].includes(w.id)).id)}">🗯️ Ler Mangá/HQ Dragon Ball</button>`:''}</div></section>` : ''}
       ${noxusStatus ? `<section class="painel noxus-event" aria-label="Evento de Noxus"><div class="noxus-event-head"><span class="noxus-event-badge">EVENTO DE NOXUS · IMPÉRIO DE FERRO E SANGUE</span><h3>Legião de Noxus · Molduras & Ícones Exclusivos</h3><p>Leia um conto, história, Lore ou HQ de qualquer personagem de Noxus (Darius, Swain, Katarina, LeBlanc, Draven, Riven, Samira, Mordekaiser, Ambessa, Talon, Sion e mais) para adquirir as 5 molduras e os 5 ícones exclusivos de Noxus.</p></div><div class="noxus-progress-card" role="region" aria-label="Progresso do Evento de Noxus"><div class="noxus-progress-header"><div><strong>${noxusStatus.remainingSets===0?'✓ Evento de Noxus Concluído!':`Progresso do Evento: ${noxusStatus.completedSets} de ${noxusStatus.totalSets} conjuntos (${noxusStatus.completedSets*2}/${noxusStatus.totalSets*2} recompensas)`}</strong><span>${noxusStatus.remainingSets===0?'Todas as 5 molduras e 5 ícones de Noxus já estão na sua coleção.':`Faltam ${noxusStatus.remainingSets} ${noxusStatus.remainingSets===1?'conjunto':'conjuntos'} (${noxusStatus.remainingSets} ${noxusStatus.remainingSets===1?'obra lida':'obras lidas'} ou ${Math.ceil(noxusStatus.totalSecondsRemaining/60)} min de leitura em Noxus) para completar tudo`}</span></div><span class="noxus-progress-pct">${noxusStatus.percent}%</span></div><progress class="noxus-progress-bar" value="${noxusStatus.effectiveSeconds}" max="${noxusStatus.totalTargetSeconds}" aria-label="Progresso geral para completar o evento de Noxus"></progress><div class="noxus-progress-steps" aria-hidden="true">${noxusStatus.sets.map((s,idx)=>`<span class="noxus-step ${s.complete?'done':noxusStatus.nextSet?.id===s.id?'active':''}"><i>${s.complete?'✓':idx+1}</i><small>${esc(s.label.split(' · ')[0])}</small></span>`).join('')}</div>${noxusStatus.nextSet?`<div class="noxus-next-unlock"><div class="noxus-next-info"><span>Próxima recompensa: <strong>${esc(noxusStatus.nextSet.label)}</strong> (Moldura + Ícone)</span><small>Falta concluir 1 obra de Noxus ou ${noxusStatus.nextSecondsRemaining}s de leitura ativa</small></div><progress class="noxus-next-bar" value="${noxusStatus.currentStepSeconds}" max="${noxusStatus.secondsPerUnlock}" aria-label="Progresso para a próxima recompensa de Noxus"></progress></div>`:''}</div><div class="news-rewards noxus-rewards-grid">${noxusStatus.sets.map(s=>`<div class="noxus-reward-item ${s.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${s.complete?'✓ Conquistado':esc(s.roleLabel)}</small></div>`).join('')}</div><p class="noxus-progress-line">Conjuntos conquistados: <strong>${noxusStatus.completedSets} / ${noxusStatus.totalSets}</strong> · Tempo em obras de Noxus: ${Math.floor(noxusStatus.seconds/60)} min · Obras de Noxus lidas: ${noxusStatus.worksRead.length}</p><small>Cada conto, história, Lore ou HQ de qualquer personagem de Noxus lido (ou 1 minuto de leitura ativa em obra de Noxus) libera um conjunto completo de Moldura + Ícone de Noxus.</small><div class="noxus-actions"><button class="btn btn-pri" data-noxus-read="conto:noxus-trifarix">📜 Ler Conto de Noxus</button><button class="btn btn-sec" data-noxus-read="regiao:noxus">🗺️ Ler Lore de Noxus</button><button class="btn btn-sec" data-noxus-read="rhq:darius/bloodofnoxus">🗯️ Ler HQ Darius: Sangue de Noxus</button></div></section>` : ''}
       <section class="painel thunder-event" aria-label="Evento ThunderCats"><div class="thunder-event-head"><span class="thunder-event-badge">EVENTO THUNDERCATS · TERCEIRA TERRA</span><h3>ThunderCats · Chamado da Terceira Terra</h3><p>Leia 10 minutos hoje para um sorteio diário, 60 minutos na semana para outro sorteio ou leia <strong>HQs ThunderCats V1</strong> (habilitadas na nuvem ou localmente) para desbloquear diretamente as 15 recompensas exclusivas (5 molduras, 5 ícones e 5 temas).</p></div>${thunderStatus ? `<div class="thunder-progress-card" role="region" aria-label="Progresso do Evento ThunderCats"><div class="thunder-progress-header"><div><strong>${thunderStatus.remainingRewards===0?'✓ Evento ThunderCats Concluído!':`Progresso do Evento: ${thunderStatus.unlockedCount} de ${thunderStatus.totalRewards} recompensas (${thunderStatus.completedSets}/${thunderStatus.totalSets} conjuntos)`}</strong><span>${thunderStatus.remainingRewards===0?'Todas as 15 recompensas (5 molduras, 5 ícones e 5 temas) de ThunderCats já estão na sua coleção.':`Faltam ${thunderStatus.remainingRewards} ${thunderStatus.remainingRewards===1?'recompensa':'recompensas'} (${thunderStatus.remainingSets} ${thunderStatus.remainingSets===1?'conjunto':'conjuntos'}) para completar o evento e desbloquear todas as novas recompensas`}</span></div><span class="thunder-progress-pct">${thunderStatus.percent}%</span></div><progress class="thunder-progress-bar" value="${thunderStatus.unlockedCount}" max="${thunderStatus.totalRewards}" aria-label="Progresso geral para completar o evento de ThunderCats"></progress><div class="thunder-progress-steps" aria-hidden="true">${thunderStatus.sets.map(s=>`<span class="thunder-step ${s.complete?'done':s.earnedCount>0?'active':''}"><i>${s.complete?'✓':`${s.earnedCount}/3`}</i><small>${esc(s.hero)}</small></span>`).join('')}</div><div class="thunder-v1-box ${thunderStatus.catalog.enabled?'enabled':''}" role="status"><div class="thunder-v1-head"><span class="thunder-v1-pill">${thunderStatus.catalog.enabled?'✓ HQs ThunderCats V1 Habilitadas':'⚡ HQs ThunderCats V1 (Nuvem / Local)'}</span><small>${thunderStatus.catalog.enabled?`${thunderStatus.catalog.totalWorks} HQ(s)/série(s) ativa(s) (${thunderStatus.catalog.cloudCount} na nuvem · ${thunderStatus.catalog.localCount} local) · Contabilizando para recompensas`:'Habilite na nuvem ou importe localmente HQs ThunderCats V1 para contabilizar bônus e desbloqueios diretos'}</small></div><progress class="thunder-v1-bar" value="${thunderStatus.remainingRewards===0?thunderStatus.v1SecondsPerReward:(thunderStatus.v1StepSeconds||(thunderStatus.catalog.enabled?20:0))}" max="${thunderStatus.v1SecondsPerReward}" aria-label="Progresso das HQs ThunderCats V1"></progress><div class="thunder-v1-meta"><span>Edições ThunderCats V1 lidas: <strong>${thunderStatus.v1WorksRead.length}</strong> · Leitura V1: <strong>${Math.floor(thunderStatus.v1Seconds/60)} min</strong></span><span>${thunderStatus.remainingRewards===0?'✓ Todas as recompensas desbloqueadas':thunderStatus.catalog.enabled?`Próxima recompensa V1: faltam ${Math.ceil(thunderStatus.v1NextSecondsRemaining)}s ou 1 HQ ThunderCats V1 concluída`:'Associe HQs ThunderCats V1 na biblioteca para acelerar'}</span></div></div><div class="thunder-subbars"><div class="thunder-subbar-item"><div class="thunder-subbar-top"><span>Sorteio Diário (10 min hoje)</span><strong>${Math.floor(thunderStatus.dailySeconds/60)} / 10 min</strong></div><progress value="${thunderStatus.dailySeconds}" max="${thunderStatus.dailyTargetSeconds}" aria-label="Meta diária do evento ThunderCats"></progress><small>${thunderStatus.dailyDone?'✓ Sorteio diário realizado hoje':`Faltam ${Math.ceil(thunderStatus.dailyRemainingSeconds/60)} min hoje para ganhar 1 recompensa`}</small></div><div class="thunder-subbar-item"><div class="thunder-subbar-top"><span>Sorteio Semanal (60 min na semana)</span><strong>${Math.floor(thunderStatus.weeklySeconds/60)} / 60 min</strong></div><progress value="${thunderStatus.weeklySeconds}" max="${thunderStatus.weeklyTargetSeconds}" aria-label="Meta semanal do evento ThunderCats"></progress><small>${thunderStatus.weeklyDone?'✓ Sorteio semanal realizado':`Faltam ${Math.ceil(thunderStatus.weeklyRemainingSeconds/60)} min na semana para ganhar 1 recompensa`}</small></div></div></div>` : ''}<div class="news-rewards">${EQThunderRewards.SETS.map(s=>{const st=thunderStatus?.sets.find(x=>x.id===s.id);return `<div class="thunder-reward-item ${st?.complete?'earned':''}"><span class="news-art">${EQRewardArt.avatar(s.id)}${EQRewardArt.frame(s.id)}</span><strong>${esc(s.label)}</strong><small>${st?`${st.earnedCount}/3 itens`:''}</small></div>`;}).join('')}</div><p>Hoje: ${Math.floor((state.days[EQReadingRewards.dayKey()]?.seconds||0)/60)} / 10 min · Semana: ${Math.floor(Object.entries(state.days).filter(([d])=>d>=week.start&&d>='2026-10-28').reduce((n,[,v])=>n+v.seconds,0)/60)} / 60 min${thunderStatus?.catalog.enabled?` · HQs ThunderCats V1: ${thunderStatus.catalog.totalWorks} habilitada(s)`:''}</p><p>${state.thunderDraws.daily?.key===EQReadingRewards.dayKey()?'✓ Sorteio diário realizado':'Sorteio diário disponível ao cumprir a meta'} · ${state.thunderDraws.weekly?.key===week.start?'✓ Sorteio semanal realizado':'Sorteio semanal disponível ao cumprir a meta'}</p><small>Horário de Brasília. A semana começa na segunda-feira. Só leitura ativa conta, a partir de 28/10/2026. HQs ThunderCats V1 habilitadas na nuvem ou localmente também contabilizam diretamente para desbloquear as recompensas. Ao completar os 15 itens, a coleção fica concluída; não há prêmios pagos ou em dinheiro.</small><div class="thunder-actions"><button class="btn btn-pri" data-quest-read>Ler para participar</button>${thunderStatus?.catalog.enabled&&thunderStatus.catalog.firstWork?`<button class="btn btn-sec" data-thunder-v1-read="${esc(thunderStatus.catalog.firstWork.id)}">⚡ Ler HQ ThunderCats V1</button>`:''}</div></section><div class="epic-challenges">${EQEpicRewards.status(state.epicProgress,EQReadingRewards.dayKey()).map(c=>`<article class="painel epic-challenge"><div class="epic-art">${EQRewardArt.avatar('sentinel')}${EQRewardArt.frame(c.option.id)}</div><div><small>${c.kind==='week'?'DESAFIO ÉPICO DA SEMANA':'COLEÇÃO ÉPICA DO MÊS'}</small><h3>${esc(c.option.label)}</h3><p>Leia ${c.target/60} minutos ${c.kind==='week'?'e conclua 2 obras nesta semana.':'e leia pelo menos 5 minutos em 8 dias deste mês.'}</p><progress value="${Math.min(c.seconds,c.target)}" max="${c.target}" aria-label="Tempo de leitura"></progress><p>${Math.floor(c.seconds/60)} / ${c.target/60} min · ${c.count} / ${c.countTarget} ${c.kind==='week'?'obras':'dias'}</p><strong>${EQReadingRewards.available(state,'frame',c.option.id)?'✓ Moldura conquistada':'Conquiste a moldura exclusiva'}</strong><br><button class="btn btn-pri" data-quest-read>Ler para progredir</button></div></article>`).join('')}</div><p class="epic-rules">A semana começa na segunda-feira; o mês, no dia 1, no horário de Brasília. Apenas leituras realizadas no período contam. A coleção tem 12 edições mensais programadas, que retornam anualmente; as conquistas ficam na conta.</p>
@@ -3600,7 +3692,7 @@
       ${Object.entries(names).map(([kind,name])=>`<div class="reward-collection" id="reward-panel-${kind}" role="tabpanel" aria-labelledby="reward-tab-${kind}" ${rewardTab===kind?'':'hidden'}>${EQReadingRewards.OPTIONS[kind].map(o=>{
         const unlocked=EQReadingRewards.available(state,kind,o.id), equipped=selected[kind]===o.id;
         const mission=EQReadingRewards.MISSIONS.find(m=>m.reward===kind+':'+o.id);
-        const requirement=o.dbs ? 'Evento Dragon Ball Super · Ler crônica, Lore, mangá ou HQ de Dragon Ball' : o.noxus ? 'Evento de Noxus · Ler conto, história, Lore ou HQ de Noxus' : o.thunder ? 'Evento ThunderCats · Sorteio ou leitura de HQs ThunderCats V1' : o.epic ? (o.monthly?'Desafio mensal · a partir de '+o.release.slice(5,7)+'/'+o.release.slice(0,4):'Desafio épico semanal') : o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
+        const requirement=o.batman ? 'Evento Batman · Ler crônica, Lore ou HQ do Batman' : o.dbs ? 'Evento Dragon Ball Super · Ler crônica, Lore, mangá ou HQ de Dragon Ball' : o.noxus ? 'Evento de Noxus · Ler conto, história, Lore ou HQ de Noxus' : o.thunder ? 'Evento ThunderCats · Sorteio ou leitura de HQs ThunderCats V1' : o.epic ? (o.monthly?'Desafio mensal · a partir de '+o.release.slice(5,7)+'/'+o.release.slice(0,4):'Desafio épico semanal') : o.event ? 'Evento de '+EQRewardSeasons.find(o.id).hero : o.xp!==undefined ? `${rewardNumber(o.xp)} XP` : mission?.title || 'Disponível desde o início';
         return `<button type="button" class="reward-card ${equipped?'equipped':''} ${unlocked?'':'locked'}" data-reward-kind="${kind}" data-reward-id="${o.id}" data-reward-event="${!!o.event}" data-reward-earned="${unlocked}" data-reward-name="${esc(o.label)}" aria-pressed="${equipped}" ${unlocked?'':'disabled'} title="${esc(unlocked?'Equipar '+o.label:requirement)}"><span class="reward-card-state" aria-hidden="true">${equipped?'✓':unlocked?'':'🔒'}</span>${previaRecompensa(kind,o)}<strong>${esc(o.label)}</strong><span class="reward-card-cost">${equipped?'Equipado':unlocked?'Disponível · Equipar':esc(requirement)}</span></button>`;
       }).join('')}</div>`).join('')}
       <p id="rewardFilterStatus" role="status"></p>
@@ -3679,6 +3771,16 @@
         const fallback=[...REG.values()].find(it=>conteudoPermitido(it)&&ehObraDeDbs(it));
         if (fallback) abrirLeitura(fallback.id);
         else toast('Abra ou importe uma crônica, Lore, mangá ou HQ de Dragon Ball Super para progredir no evento.');
+      }
+    });
+    $$('[data-batman-read]').forEach(button=>button.onclick=()=>{
+      const preferredId=button.dataset.batmanRead;
+      const target=REG.get(preferredId) || [...REG.values()].find(it=>conteudoPermitido(it)&&ehObraDeBatman(it)&&it.tipo!=='wiki');
+      if (target && conteudoPermitido(target)) abrirLeitura(target.id);
+      else {
+        const fallback=[...REG.values()].find(it=>conteudoPermitido(it)&&ehObraDeBatman(it));
+        if (fallback) abrirLeitura(fallback.id);
+        else toast('Abra ou importe uma crônica, Lore ou HQ do Batman para progredir no evento.');
       }
     });
     filterRewards();

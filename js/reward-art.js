@@ -7,6 +7,7 @@
   const Thunder=root.EQThunderRewards||(typeof require==='function'&&require('./thunder-rewards'));
   const Noxus=root.EQNoxusRewards||(typeof require==='function'&&require('./noxus-rewards'));
   const Dbs=root.EQDbsRewards||(typeof require==='function'&&require('./dbs-rewards'));
+  const Batman=root.EQBatmanRewards||(typeof require==='function'&&require('./batman-rewards'));
   const palettes={
     default:['#8492a6','#d9e3f0','metal'],bronze:['#a65b32','#f4c598','metal'],silver:['#7a92b0','#eff8ff','metal'],
     steel:['#1473bd','#9aeaff','metal'],verdant:['#277b24','#b1f86b','leaf'],ice:['#168dcc','#beffff','ice'],gold:['#bd6b09','#ffe582','crown'],
@@ -59,6 +60,7 @@
   const thunderFrameBoxes=[[7,433,0,60,447,563],[448,426,439,84,448,555],[879,423,865,78,446,530],[1306,432,1300,82,447,530],[1745,421,1731,51,446,580]];
   const noxusFrameBoxes=[[0,236,0,96,236,330],[237,210,237,86,210,334],[448,210,448,95,210,323],[659,209,659,89,209,318],[869,231,869,89,230,324]];
   const dbsFrameBoxes=[[0,234,36,71,186,285],[235,209,253,79,189,265],[445,222,470,82,177,255],[668,214,689,74,177,278],[883,230,910,82,171,255]];
+  const batmanFrameBoxes=[[0,297,20,104,262,350],[298,233,310,105,208,358],[532,265,552,115,228,332],[798,242,835,112,172,340],[1041,275,1072,102,216,348]];
   function frame(id) {
     const thunder=(root.EQThunderRewards||Thunder)?.SETS.find(s=>s.id===id);
     if(thunder){
@@ -74,6 +76,11 @@
     if(dbs){
       const uid='eq-dbs-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=dbsFrameBoxes[dbs.index]||dbsFrameBoxes[0];
       return `<svg class="reward-frame-art dbs-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="413"/></clipPath></defs><svg x="2" y="-12" width="116" height="136" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/dbs-frames.png" width="1113" height="413" clip-path="url(#${uid})"/></svg></svg>`;
+    }
+    const batman=(root.EQBatmanRewards||Batman)?.SETS.find(s=>s.id===id);
+    if(batman){
+      const uid='eq-batman-frame-'+(++sequence),[cx,cw,vx,vy,vw,vh]=batmanFrameBoxes[batman.index]||batmanFrameBoxes[0];
+      return `<svg class="reward-frame-art batman-frame" viewBox="0 0 120 120" overflow="visible" aria-hidden="true"><defs><clipPath id="${uid}"><rect x="${cx}" y="0" width="${cw}" height="472"/></clipPath></defs><svg x="0" y="-10" width="120" height="134" viewBox="${vx} ${vy} ${vw} ${vh}" preserveAspectRatio="none" overflow="visible"><image href="assets/batman-frames.png" width="1316" height="472" clip-path="url(#${uid})"/></svg></svg>`;
     }
 
     const epic=(root.EQEpicRewards||Epic)?.OPTIONS.find(o=>o.id===id);if(epic)return epicFrame(epic);
@@ -115,6 +122,11 @@
       const uid='eq-dbs-av-'+(++sequence);
       return `<svg class="reward-avatar-art dbs-avatar" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${dbs.index*128+4} 4 120 120" preserveAspectRatio="xMidYMid slice"><image href="assets/dbs-avatars.png" width="640" height="128"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${dbs.light}" stroke-opacity=".75" stroke-width="2.2"/></svg>`;
     }
+    const batman=(root.EQBatmanRewards||Batman)?.SETS.find(s=>s.id===id);
+    if(batman){
+      const uid='eq-batman-av-'+(++sequence);
+      return `<svg class="reward-avatar-art batman-avatar" viewBox="0 0 100 100" aria-hidden="true"><defs><clipPath id="${uid}"><rect width="100" height="100" rx="22"/></clipPath></defs><g clip-path="url(#${uid})"><svg width="100" height="100" viewBox="${batman.index*128+4} 4 120 120" preserveAspectRatio="xMidYMid slice"><image href="assets/batman-avatars.png" width="640" height="128"/></svg></g><rect x="1.5" y="1.5" width="97" height="97" rx="21" fill="none" stroke="${batman.light}" stroke-opacity=".75" stroke-width="2.2"/></svg>`;
+    }
 
     const set=Seasons.find(id);if(set)return heroAvatar(set,id.startsWith('event_'));
     const config={sentinel:['#27a8d7','#09243c'],ranger:['#7bd985','#133f32'],astronaut:['#b6caff','#20284f'],mage:['#c78cff','#381959'],cybercat:['#69f8e8','#30217b'],phoenix:['#ffbe51','#6c1c33']}[id]||['#27a8d7','#09243c'];
@@ -132,12 +144,14 @@
   if(root.document) {
     const style=document.createElement('style');style.id='character-reward-themes';
     const dbsThemeCss=((root.EQDbsRewards||Dbs)?.SETS||[]).map(set=>`:root[data-site-theme="${set.id}"]{--bg:color-mix(in srgb,${set.dark} 24%,#050609);--bg2:color-mix(in srgb,${set.dark} 38%,#0b0d14);--card:color-mix(in srgb,${set.dark} 46%,#11141c);--card2:color-mix(in srgb,${set.dark} 58%,#151a25);--borda:color-mix(in srgb,${set.light} 35%,#242633);--txt:#fff8ef;--txt2:#c8d0e0;--acento:${set.light};--acento2:${set.dark}}:root[data-site-theme="${set.id}"] body{background-image:radial-gradient(ellipse at top right,${set.light}22,transparent 60%),radial-gradient(ellipse at bottom left,${set.dark}66,transparent 65%)}[data-preview-theme="${set.id}"]{--preview-bg:${set.dark};--preview-accent:${set.light};border-color:${set.light}66}`);
+    const batmanThemeCss=((root.EQBatmanRewards||Batman)?.SETS||[]).map(set=>`:root[data-site-theme="${set.id}"]{--bg:color-mix(in srgb,${set.dark} 24%,#040508);--bg2:color-mix(in srgb,${set.dark} 38%,#0a0d14);--card:color-mix(in srgb,${set.dark} 46%,#10131b);--card2:color-mix(in srgb,${set.dark} 58%,#141925);--borda:color-mix(in srgb,${set.light} 35%,#242836);--txt:#f8fafc;--txt2:#b8c4d8;--acento:${set.light};--acento2:${set.dark}}:root[data-site-theme="${set.id}"] body{background-image:radial-gradient(ellipse at top right,${set.light}20,transparent 60%),radial-gradient(ellipse at bottom left,${set.dark}72,transparent 65%)}[data-preview-theme="${set.id}"]{--preview-bg:${set.dark};--preview-accent:${set.light};border-color:${set.light}66}`);
     style.textContent=[
       ...Seasons.SETS.flatMap(set=>['hero_','event_'].map(prefix=>{
         const id=prefix+set.id, accent=prefix==='event_'?'#ffdf83':set.light;
         return `:root[data-site-theme="${id}"]{--bg:color-mix(in srgb,${set.dark} 20%,#050609);--bg2:color-mix(in srgb,${set.dark} 32%,#0b0d14);--card:color-mix(in srgb,${set.dark} 42%,#11141c);--card2:color-mix(in srgb,${set.dark} 52%,#151a25);--borda:color-mix(in srgb,${set.light} 30%,#242633);--txt:#fff8ef;--txt2:#c4c5d3;--acento:${accent};--acento2:${set.light}}:root[data-site-theme="${id}"] body{background-image:radial-gradient(ellipse at top right,${set.dark}44,transparent 65%)}[data-preview-theme="${id}"]{--preview-bg:${set.dark};--preview-accent:${accent}}`;
       })),
-      ...dbsThemeCss
+      ...dbsThemeCss,
+      ...batmanThemeCss
     ].join('');document.head.append(style);
   }
   root.EQRewardArt={frame,avatar};
